@@ -1,0 +1,14 @@
+Prerequisites
+-------------
+
+You need TeX Live and the beamer class to build:
+
+    sudo apt-get install texlive latex-beamer
+
+
+Building
+--------
+
+To build the presentation PDF run:
+
+    make pdf
