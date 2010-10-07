@@ -342,7 +342,7 @@ nextMove b = selectMove allMoves
 \end{frame}
 
 \begin{frame}[fragile]
-\frametitle{Back to our missbehaving function}
+\frametitle{Back to our misbehaving function}
 How does evaluation of this expression proceed?
 \begin{lstlisting}
 sum [1,2,3]
@@ -542,7 +542,7 @@ mean xs = s / fromIntegral l
 \begin{frame}[fragile]
   \frametitle{Bang patterns}
 
-  \emph{Bang patterns} is a concise way to express that an argument
+  A \emph{bang patterns} is a concise way to express that an argument
   should be evaluated.
 
   \begin{lstlisting}
@@ -627,7 +627,7 @@ mean xs = s / fromIntegral l
   therefore:
   \begin{itemize}
   \item One of the function's right-hand sides will be evaluated.
-  \item Any expression which value is required to decide which RHS to
+  \item Any expression whose value is required to decide which RHS to
     evaluate, must be evaluated.
   \end{itemize}
   By using this ``backward-to-front'' analysis we can figure which
@@ -1629,7 +1629,7 @@ insert x (Node x' l r)
     | x > x'    = Node x' l (insert x r)
     | otherwise = Node x l r
   \end{lstlisting}
-  The first argument is represent as a boxed \lstinline!Int! value.
+  The first argument is represented as a boxed \lstinline!Int! value.
 \end{frame}
 
 \begin{frame}[fragile]
