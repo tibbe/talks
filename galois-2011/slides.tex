@@ -1,0 +1,88 @@
+\documentclass{beamer}
+\usepackage{listings}
+% \usepackage{pgfpages}
+% \pgfpagesuselayout{4 on 1}[a4paper,border shrink=5mm,landscape]
+
+\title{Faster persistent data structures through hashing}
+\author{Johan Tibell\\johan.tibell@gmail.com}
+\date{2011-02-15}
+
+\begin{document}
+\lstset{language=Haskell}
+
+\frame{\titlepage}
+
+\begin{frame}
+  \frametitle{Motivating problem: Twitter data analys}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Initial problem: string comparison is expensive}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Hashing is used in other languages}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Milan's idea: Patricia trees as hash maps}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Actual implementation}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Implementation tricks}
+  Collisions are infrequent
+\end{frame}
+
+\begin{frame}
+  \frametitle{Benchmarks}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Borrowing from our neighbours}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Clojure's PersistentHashMap description}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Initial implementation based on ezyang's work}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Benchmarks}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Where is all the time spent?}
+  Profiling
+\end{frame}
+
+\begin{frame}
+  \frametitle{A better array copy}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Benchmarks}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Possible improvements}
+  arraycopy, parallelism
+\end{frame}
+
+\begin{frame}
+  \frametitle{Summary}
+\end{frame}
+
+\end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% TeX-PDF-mode: t
+%%% End:
