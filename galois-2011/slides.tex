@@ -149,6 +149,9 @@ data List k v = Nil | Cons !k !v !(List k v)
     \hline lookup & 1.00 & 0.28 \\
     \hline
   \end{tabular}
+  \bigskip
+
+  \lstinline!delete! performs like \lstinline!insert!.
 \end{frame}
 
 \begin{frame}
@@ -178,8 +181,8 @@ data List k v = Nil | Cons !k !v !(List k v)
   \item Each node, except the leaf nodes, contains an array of up to
     32 elements.
   \item 5 bits of the hash are used to index the array at each level.
-  \item A clever trick using bit population count is used to represent
-    spare arrays.
+  \item A clever trick, using bit population count, is used to
+    represent spare arrays.
   \end{itemize}
 \end{frame}
 
@@ -196,6 +199,8 @@ data HashMap k v
                 {-# UNPACK #-} !(Array (Leaf k v))
 
 type Bitmap = Word
+
+data Array a = Array !(Array# a) {-# UNPACK #-} !Int
   \end{lstlisting}
 \end{frame}
 
@@ -234,7 +239,7 @@ type Bitmap = Word
 
   \begin{itemize}
   \item Most time in \lstinline!insert! is spent copying small arrays.
-  \item Array copy is implemented in terms of \lstinline!indexArray\#!
+  \item Array copying is implemented using \lstinline!indexArray\#!
     and \lstinline!writeArray\#!, which results in poor performance.
   \item When cloning an array, we are force to first fill the new
     array with dummy elements, followed by copying over the elements
@@ -262,7 +267,9 @@ type Bitmap = Word
     memory allocation, and CMM inlining.
   \item Use dedicated bit population count instruction on
     architectures where it's available.
-  \item Parallel folds, maps, etc.
+  \item Clojure uses a clever trick to unpack keys and values directly
+    into the arrays; keys are stored at even positions and values at
+    odd positions.
   \end{itemize}
 \end{frame}
 
@@ -271,6 +278,8 @@ type Bitmap = Word
   \begin{itemize}
   \item We will soon have two map types worth using (one ordered and one
     unordered).
+  \item We want to write function that work with both types, without a
+    $O(n)$ conversion cost.
   \item Use type families to abstract over different concrete
     implementation.
   \end{itemize}
