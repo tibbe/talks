@@ -246,11 +246,11 @@ type Bitmap = Word
   \frametitle{A better array copy}
 
   \begin{itemize}
-  \item Daniel Peebles have implemented a set of new primops for array
-    copying in GHC.
+  \item Daniel Peebles have implemented a set of new primops for
+    copying array in GHC.
   \item The first implementation showed a 20\% performance improvement
-    in \lstinline!insert!.
-  \item Array copying is still slow so there might be room for big
+    for \lstinline!insert!.
+  \item Copying arrays is still slow so there might be room for big
     improvements still.
   \end{itemize}
 \end{frame}
@@ -258,17 +258,31 @@ type Bitmap = Word
 \begin{frame}
   \frametitle{Other possible performance improvements}
   \begin{itemize}
-  \item Parallellism...
+  \item Even faster array copying using SSE instructions, inline
+    memory allocation, and CMM inlining.
+  \item Use dedicated bit population count instruction on
+    architectures where it's available.
+  \item Parallel folds, maps, etc.
   \end{itemize}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Aside: the need for a sane hierarchy}
+  \frametitle{Abstracting over collection types}
+  \begin{itemize}
+  \item We will soon have two map types worth using (one ordered and one
+    unordered).
+  \item Use type families to abstract over different concrete
+    implementation.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
   \frametitle{Summary}
-  (Everything I said applies to sets as well)
+  \begin{itemize}
+  \item Hashing allows us to create more efficient data structures.
+  \item There are new interesting data structures out there that have,
+    or could have, an efficient persistent implementation.
+  \end{itemize}
 \end{frame}
 
 \end{document}
