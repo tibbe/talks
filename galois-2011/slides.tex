@@ -234,8 +234,8 @@ type Bitmap = Word
 
   \begin{itemize}
   \item Most time in \lstinline!insert! is spent copying small arrays.
-  \item Array copy is implemented in terms of \lstinline!indexArray#!
-    and \lstinline!writeArray#!, which results in poor performance.
+  \item Array copy is implemented in terms of \lstinline!indexArray\#!
+    and \lstinline!writeArray\#!, which results in poor performance.
   \item When cloning an array, we are force to first fill the new
     array with dummy elements, followed by copying over the elements
     from the old array.
