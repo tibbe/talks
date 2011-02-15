@@ -43,11 +43,11 @@
   \frametitle{Real world performance of Data.Map}
 
   \begin{itemize}
-  \item Good in theory: no more than \emph{O(log n)} comparisons.
-  \item Not great in practice: up to \emph{O(log n)} comparisons!
+  \item Good in theory: no more than $O(\log n)$ comparisons.
+  \item Not great in practice: up to $O(\log n)$ comparisons!
   \item Many common types are expensive to compare e.g
     \lstinline!String!, \lstinline!ByteString!, and \lstinline!Text!.
-  \item Given a string of length \emph{k}, we need \emph{O(k*log n)}
+  \item Given a string of length $k$, we need $O(k*\log n)$
     comparisons to look up an entry.
   \end{itemize}
 \end{frame}
@@ -55,8 +55,8 @@
 \begin{frame}
   \frametitle{Hash tables}
   \begin{itemize}
-  \item Hash tables perform well with string keys: \emph{O(k)}
-    amortized lookup time for strings of length \emph{k}.
+  \item Hash tables perform well with string keys: $O(k)$ amortized
+    lookup time for strings of length $k$.
   \item However, we want persistent maps, not mutable hash tables.
   \end{itemize}
 \end{frame}
@@ -66,7 +66,7 @@
   \begin{itemize}
   \item We can use hashing without using hash tables!
   \item A Patricia tree implements a persistent, sparse array.
-  \item Patricia trees are twice as fast as size balanced trees, but
+  \item Patricia trees are as twice fast as size balanced trees, but
     only work with \lstinline!Int! keys.
   \item Use hashing to derive an \lstinline!Int! from an arbitrary
     key.
@@ -77,15 +77,36 @@
   \frametitle{Implementation tricks}
   \begin{itemize}
   \item Patricia trees implement a spare, persistent array of size
-    2\^32 (or 2\^64) TODO:escape.
-  \item This makes hash collisions rare.
-  \item A linked list is perfectly adequet (sp?) collision resolution
+    $2^{32}$ (or $2^{64}$).
+  \item Hashing using this many buckets makes collisions rare: for
+    $2^{24}$ entries we expect about 32,000 single collisions.
+  \item Linked lists are a perfectly adequate collision resolution
     strategy.
   \end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]
-  \frametitle{Actual implementation}
+  \frametitle{First attempt at an implementation}
+  \begin{lstlisting}
+-- Defined in the containers package.
+data IntMap a
+    = Nil
+    | Tip {-# UNPACK #-} !Key a
+    | Bin {-# UNPACK #-} !Prefix
+          {-# UNPACK #-} !Mask
+          !(IntMap a) !(IntMap a)
+
+type Prefix = Int
+type Mask   = Int
+type Key    = Int
+
+newtype HashMap k v = HashMap (IntMap [(k ,v)])
+  \end{lstlisting}
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{A more memory efficient implementation}
   \begin{lstlisting}
 data HashMap k v
     = Nil
@@ -105,19 +126,38 @@ data List k v = Nil | Cons !k !v !(List k v)
 \end{frame}
 
 \begin{frame}
-  \frametitle{Saving the wor(l)d}
+  \frametitle{Reducing the memory footprint}
   \begin{itemize}
   \item \lstinline!List k v! uses 2 fewer words per key/value pair
     than \lstinline![(k, v)]!.
   \item \lstinline!FullList! can be unpacked into the \lstinline!Tip!
-    constructor as it's not a sum type (unlike \lstinline!List!)
-  \item Always unpack word sized types like \lstinline!Int!, unless
+    constructor as it's a product type, saving 2 more words.
+  \item Always unpack word sized types, like \lstinline!Int!, unless
     you really need them to be lazy.
   \end{itemize}
 \end{frame}
 
 \begin{frame}
   \frametitle{Benchmarks}
+
+  Keys: $2^{12}$ random 8-byte \lstinline!ByteString!s
+
+  \bigskip
+  \begin{tabular}{|c|c|c|}
+    \hline \textbf{Operation} & \textbf{Map} & \textbf{HashMap} \\
+    \hline insert & 1.00 & 0.43 \\
+    \hline lookup & 1.00 & 0.28 \\
+    \hline
+  \end{tabular}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Can we do better?}
+  \begin{itemize}
+  \item We still need to perform $O(min(W, \log n))$ \lstinline!Int!
+    comparisons, where $W$ is the number of bits in a word.
+  \item The memory overhead per key/value pair is still quite high.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
