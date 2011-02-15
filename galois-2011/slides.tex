@@ -163,19 +163,28 @@ data List k v = Nil | Cons !k !v !(List k v)
 \begin{frame}
   \frametitle{Borrowing from our neighbours}
   \begin{itemize}
-  \item Clojure uses a \emph{hash array mapped trie} (HAMT) to
-    implement persistent maps.
-  \item A HAMT is a...
+  \item Clojure uses a \emph{hash-array mapped trie} (HAMT) data
+    structure to implement persistent maps.
+  \item Described in the paper ``Ideal Hash Trees'' by Bagwell (2001).
+  \item Originally a mutable data structure implemented in C++.
+  \item Clojure's persistent version was created by Rich Hickey.
   \end{itemize}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Clojure's PersistentHashMap description}
+  \frametitle{Hash-array mapped tries in Clojure}
+  \begin{itemize}
+  \item Shallow tree with high branching factor.
+  \item Each node, except the leaf nodes, contains an array of up to
+    32 elements.
+  \item 5 bits of the hash are used to index the array at each level.
+  \item A clever trick using bit population count is used to represent
+    spare arrays.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]
-  \frametitle{Initial implementation based on ezyang's work}
-  TODO: Find real initial implementation
+  \frametitle{The Haskell definition of a HAMT}
   \begin{lstlisting}
 data HashMap k v
     = Empty
@@ -191,25 +200,67 @@ type Bitmap = Word
 \end{frame}
 
 \begin{frame}
+  \frametitle{Making it fast}
+  \begin{itemize}
+  \item The initial implementation by Edward Z. Yang: correct but
+    didn't perform well.
+    \item Improved performance by
+      \begin{itemize}
+        \item replacing use of \lstinline!Data.Vector! by a
+          specialized array type,
+        \item paying careful attention to strictness, and
+        \item using GHC's new \texttt{INLINABLE} pragma.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
   \frametitle{Benchmarks}
+
+  Keys: $2^{12}$ random 8-byte \lstinline!ByteString!s
+
+  \bigskip
+  \begin{tabular}{|c|c|c|c|}
+    \hline \textbf{Operation} & \textbf{Map} & \textbf{HashMap} &
+    \textbf{HashMap (HAMT)} \\
+    \hline insert & 1.00 & 0.43 & 1.21 \\
+    \hline lookup & 1.00 & 0.28 & 0.21 \\
+    \hline
+  \end{tabular}
 \end{frame}
 
 \begin{frame}
   \frametitle{Where is all the time spent?}
-  Profiling
+
+  \begin{itemize}
+  \item Most time in \lstinline!insert! is spent copying small arrays.
+  \item Array copy is implemented in terms of \lstinline!indexArray#!
+    and \lstinline!writeArray#!, which results in poor performance.
+  \item When cloning an array, we are force to first fill the new
+    array with dummy elements, followed by copying over the elements
+    from the old array.
+  \item 
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
   \frametitle{A better array copy}
+
+  \begin{itemize}
+  \item Daniel Peebles have implemented a set of new primops for array
+    copying in GHC.
+  \item The first implementation showed a 20\% performance improvement
+    in \lstinline!insert!.
+  \item Array copying is still slow so there might be room for big
+    improvements still.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Benchmarks}
-\end{frame}
-
-\begin{frame}
-  \frametitle{Possible improvements}
-  arraycopy, parallelism
+  \frametitle{Other possible performance improvements}
+  \begin{itemize}
+  \item 
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
