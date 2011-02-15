@@ -34,7 +34,7 @@
   \begin{itemize}
   \item \lstinline!Data.Map! is the most commonly used map type.
   \item It's implemented using size balanced trees.
-  \item Keys can be of any typs, as long as values of the type can be
+  \item Keys can be of any type, as long as values of the type can be
     ordered.
   \end{itemize}
 \end{frame}
@@ -62,7 +62,7 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{Milan Straka's idea: Patricia trees as spare arrays}
+  \frametitle{Milan Straka's idea: Patricia trees as sparse arrays}
   \begin{itemize}
   \item We can use hashing without using hash tables!
   \item A Patricia tree implements a persistent, sparse array.
@@ -76,7 +76,7 @@
 \begin{frame}
   \frametitle{Implementation tricks}
   \begin{itemize}
-  \item Patricia trees implement a spare, persistent array of size
+  \item Patricia trees implement a sparse, persistent array of size
     $2^{32}$ (or $2^{64}$).
   \item Hashing using this many buckets makes collisions rare: for
     $2^{24}$ entries we expect about 32,000 single collisions.
@@ -144,9 +144,9 @@ data List k v = Nil | Cons !k !v !(List k v)
 
   \bigskip
   \begin{tabular}{|c|c|c|}
-    \hline \textbf{Operation} & \textbf{Map} & \textbf{HashMap} \\
-    \hline insert & 1.00 & 0.43 \\
-    \hline lookup & 1.00 & 0.28 \\
+    \hline  & \textbf{Map} & \textbf{HashMap} \\
+    \hline \textbf{insert} & 1.00 & 0.43 \\
+    \hline \textbf{lookup} & 1.00 & 0.28 \\
     \hline
   \end{tabular}
   \bigskip
@@ -228,10 +228,10 @@ data Array a = Array !(Array# a)
 
   \bigskip
   \begin{tabular}{|c|c|c|c|}
-    \hline \textbf{Operation} & \textbf{Map} & \textbf{HashMap} &
+    \hline  & \textbf{Map} & \textbf{HashMap} &
     \textbf{HashMap (HAMT)} \\
-    \hline insert & 1.00 & 0.43 & 1.21 \\
-    \hline lookup & 1.00 & 0.28 & 0.21 \\
+    \hline \textbf{insert} & 1.00 & 0.43 & 1.21 \\
+    \hline \textbf{lookup} & 1.00 & 0.28 & 0.21 \\
     \hline
   \end{tabular}
 \end{frame}
@@ -272,7 +272,28 @@ data Array a = Array !(Array# a)
   \item Clojure uses a clever trick to unpack keys and values directly
     into the arrays; keys are stored at even positions and values at
     odd positions.
+  \item GHC 7.2 will use 1 less word for \lstinline!Array!.
   \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Optimize common cases}
+  \begin{itemize}
+  \item In many cases maps are created in one go from a sequence of
+    key/value pairs.
+  \item We can optimize for this case by repeatedly mutating the HAMT
+    and freeze it when we're done.
+  \end{itemize}
+
+  \bigskip
+  Keys: $2^{12}$ random 8-byte \lstinline!ByteString!s
+
+  \bigskip
+  \begin{tabular}{|c|c|}
+    \hline \textbf{fromList/pure} & 1.00 \\
+    \hline \textbf{fromList/mutating} & 0.50 \\
+    \hline
+  \end{tabular}
 \end{frame}
 
 \begin{frame}
