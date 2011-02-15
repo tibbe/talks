@@ -1,7 +1,7 @@
 \documentclass{beamer}
 \usepackage{listings}
-\usepackage{pgfpages}
-\pgfpagesuselayout{4 on 1}[a4paper,border shrink=5mm,landscape]
+% \usepackage{pgfpages}
+% \pgfpagesuselayout{4 on 1}[a4paper,border shrink=5mm,landscape]
 
 \title{Faster persistent data structures through hashing}
 \author{Johan Tibell\\johan.tibell@gmail.com}
@@ -100,7 +100,7 @@ type Prefix = Int
 type Mask   = Int
 type Key    = Int
 
-newtype HashMap k v = HashMap (IntMap [(k ,v)])
+newtype HashMap k v = HashMap (IntMap [(k, v)])
   \end{lstlisting}
 \end{frame}
 
@@ -191,8 +191,9 @@ data List k v = Nil | Cons !k !v !(List k v)
   \begin{lstlisting}
 data HashMap k v
     = Empty
-    | BitmapIndexed {-# UNPACK #-} !Bitmap
-                    {-# UNPACK #-} !(Array (HashMap k v))
+    | BitmapIndexed
+          {-# UNPACK #-} !Bitmap
+          {-# UNPACK #-} !(Array (HashMap k v))
     | Leaf {-# UNPACK #-} !(Leaf k v)
     | Full {-# UNPACK #-} !(Array (HashMap k v))
     | Collision {-# UNPACK #-} !Hash
@@ -200,7 +201,8 @@ data HashMap k v
 
 type Bitmap = Word
 
-data Array a = Array !(Array# a) {-# UNPACK #-} !Int
+data Array a = Array !(Array# a)
+                     {-# UNPACK #-} !Int
   \end{lstlisting}
 \end{frame}
 
