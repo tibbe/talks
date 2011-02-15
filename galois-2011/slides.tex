@@ -1,7 +1,7 @@
 \documentclass{beamer}
 \usepackage{listings}
-% \usepackage{pgfpages}
-% \pgfpagesuselayout{4 on 1}[a4paper,border shrink=5mm,landscape]
+\usepackage{pgfpages}
+\pgfpagesuselayout{4 on 1}[a4paper,border shrink=5mm,landscape]
 
 \title{Faster persistent data structures through hashing}
 \author{Johan Tibell\\johan.tibell@gmail.com}
@@ -14,27 +14,106 @@
 
 \begin{frame}
   \frametitle{Motivating problem: Twitter data analys}
+
+  ``I'm computing a communication graph from Twitter data and then
+  scan it daily to allocate social capital to nodes behaving in a good
+  karmic manner.  The graph is culled from 100 million tweets and has
+  about 3 million nodes.''
+
+  \bigskip
+  We need a data structure that is
+  \begin{itemize}
+  \item fast when used with string keys, and
+  \item doesn't use too much memory.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Initial problem: string comparison is expensive}
+  \frametitle{Persistent maps in Haskell}
+
+  \begin{itemize}
+  \item \lstinline!Data.Map! is the most commonly used map type.
+  \item It's implemented using size balanced trees.
+  \item Keys can be of any typs, as long as values of the type can be
+    ordered.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Hashing is used in other languages}
+  \frametitle{Real world performance of Data.Map}
+
+  \begin{itemize}
+  \item Good in theory: no more than \emph{O(log n)} comparisons.
+  \item Not great in practice: up to \emph{O(log n)} comparisons!
+  \item Many common types are expensive to compare e.g
+    \lstinline!String!, \lstinline!ByteString!, and \lstinline!Text!.
+  \item Given a string of length \emph{k}, we need \emph{O(k*log n)}
+    comparisons to look up an entry.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Milan's idea: Patricia trees as hash maps}
+  \frametitle{Hash tables}
+  \begin{itemize}
+  \item Hash tables perform well with string keys: \emph{O(k)}
+    amortized lookup time for strings of length \emph{k}.
+  \item However, we want persistent maps, not mutable hash tables.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Actual implementation}
+  \frametitle{Milan Straka's idea: Patricia trees as spare arrays}
+  \begin{itemize}
+  \item We can use hashing without using hash tables!
+  \item A Patricia tree implements a persistent, sparse array.
+  \item Patricia trees are twice as fast as size balanced trees, but
+    only work with \lstinline!Int! keys.
+  \item Use hashing to derive an \lstinline!Int! from an arbitrary
+    key.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
   \frametitle{Implementation tricks}
-  Collisions are infrequent
+  \begin{itemize}
+  \item Patricia trees implement a spare, persistent array of size
+    2\^32 (or 2\^64) TODO:escape.
+  \item This makes hash collisions rare.
+  \item A linked list is perfectly adequet (sp?) collision resolution
+    strategy.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Actual implementation}
+  \begin{lstlisting}
+data HashMap k v
+    = Nil
+    | Tip {-# UNPACK #-} !Hash
+          {-# UNPACK #-} !(FL.FullList k v)
+    | Bin {-# UNPACK #-} !Prefix
+          {-# UNPACK #-} !Mask
+          !(HashMap k v) !(HashMap k v)
+
+type Prefix = Int
+type Mask   = Int
+type Hash   = Int
+
+data FullList k v = FL !k !v !(List k v)
+data List k v = Nil | Cons !k !v !(List k v)
+  \end{lstlisting}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Saving the wor(l)d}
+  \begin{itemize}
+  \item \lstinline!List k v! uses 2 fewer words per key/value pair
+    than \lstinline![(k, v)]!.
+  \item \lstinline!FullList! can be unpacked into the \lstinline!Tip!
+    constructor as it's not a sum type (unlike \lstinline!List!)
+  \item Always unpack word sized types like \lstinline!Int!, unless
+    you really need them to be lazy.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
@@ -43,14 +122,32 @@
 
 \begin{frame}
   \frametitle{Borrowing from our neighbours}
+  \begin{itemize}
+  \item Clojure uses a \emph{hash array mapped trie} (HAMT) to
+    implement persistent maps.
+  \item A HAMT is a...
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
   \frametitle{Clojure's PersistentHashMap description}
 \end{frame}
 
-\begin{frame}
+\begin{frame}[fragile]
   \frametitle{Initial implementation based on ezyang's work}
+  TODO: Find real initial implementation
+  \begin{lstlisting}
+data HashMap k v
+    = Empty
+    | BitmapIndexed {-# UNPACK #-} !Bitmap
+                    {-# UNPACK #-} !(Array (HashMap k v))
+    | Leaf {-# UNPACK #-} !(Leaf k v)
+    | Full {-# UNPACK #-} !(Array (HashMap k v))
+    | Collision {-# UNPACK #-} !Hash
+                {-# UNPACK #-} !(Array (Leaf k v))
+
+type Bitmap = Word
+  \end{lstlisting}
 \end{frame}
 
 \begin{frame}
@@ -81,6 +178,7 @@
 
 \begin{frame}
   \frametitle{Summary}
+  (Everything I said applies to sets as well)
 \end{frame}
 
 \end{document}
