@@ -182,7 +182,7 @@ data List k v = Nil | Cons !k !v !(List k v)
     32 elements.
   \item 5 bits of the hash are used to index the array at each level.
   \item A clever trick, using bit population count, is used to
-    represent spare arrays.
+    represent sparse arrays.
   \end{itemize}
 \end{frame}
 
@@ -266,7 +266,7 @@ data Array a = Array !(Array# a)
   \frametitle{Other possible performance improvements}
   \begin{itemize}
   \item Even faster array copying using SSE instructions, inline
-    memory allocation, and CMM inlining.
+    memory allocation, and C-- inlining.
   \item Use dedicated bit population count instruction on
     architectures where it's available.
   \item Clojure uses a clever trick to unpack keys and values directly
@@ -301,10 +301,10 @@ data Array a = Array !(Array# a)
   \begin{itemize}
   \item We will soon have two map types worth using (one ordered and one
     unordered).
-  \item We want to write function that work with both types, without a
+  \item We want to write functions that work with both types, without a
     $O(n)$ conversion cost.
   \item Use type families to abstract over different concrete
-    implementation.
+    implementations.
   \end{itemize}
 \end{frame}
 
