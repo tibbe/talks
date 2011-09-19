@@ -8,20 +8,27 @@
 % \pgfpagesuselayout{4 on 1}[a4paper,border shrink=5mm,landscape]
 
 % Features
-\setbeamertemplate{items}[circle]
 \setbeamertemplate{navigation symbols}{}
 
 % Fonts
 \setmainfont{Helvetica}
 \setmathsfont(Digits,Latin,Greek){Helvetica}
-\setmonofont{Menlo}
+\setmonofont{Monaco}
+
+% Macros
+\definecolor{CodeColor}{RGB}{0,112,0}
+\newcommand{\code}[1]{\mbox{\texttt{\small{\color{CodeColor}{#1}}}}}
 
 \title{Faster persistent data structures through hashing}
 \author{Johan Tibell\\johan.tibell@gmail.com}
 \date{2011-09-23}
 
 \begin{document}
-\lstset{language=Haskell,keywordstyle=}
+\lstset{
+  language=Haskell,
+  basicstyle=\small,
+  keywordstyle=,
+  commentstyle=\color{CodeColor}}
 
 \frame{\titlepage}
 
@@ -45,7 +52,7 @@
   \frametitle{Persistent maps in Haskell}
 
   \begin{itemize}
-  \item \lstinline!Data.Map! is the most commonly used map type.
+  \item \code{Data.Map} is the most commonly used map type.
   \item It's implemented using size balanced trees.
   \item Keys can be of any type, as long as values of the type can be
     ordered.
@@ -59,7 +66,7 @@
   \item Good in theory: no more than $O(\log n)$ comparisons.
   \item Not great in practice: up to $O(\log n)$ comparisons!
   \item Many common types are expensive to compare e.g
-    \lstinline!String!, \lstinline!ByteString!, and \lstinline!Text!.
+    \code{String}, \code{ByteString}, and \code{Text}.
   \item Given a string of length $k$, we need $O(k*\log n)$
     comparisons to look up an entry.
   \end{itemize}
@@ -80,8 +87,8 @@
   \item We can use hashing without using hash tables!
   \item A Patricia tree implements a persistent, sparse array.
   \item Patricia trees are as twice fast as size balanced trees, but
-    only work with \lstinline!Int! keys.
-  \item Use hashing to derive an \lstinline!Int! from an arbitrary
+    only work with \code{Int} keys.
+  \item Use hashing to derive an \code{Int} from an arbitrary
     key.
   \end{itemize}
 \end{frame}
@@ -141,11 +148,11 @@ data List k v = Nil | Cons !k !v !(List k v)
 \begin{frame}
   \frametitle{Reducing the memory footprint}
   \begin{itemize}
-  \item \lstinline!List k v! uses 2 fewer words per key/value pair
-    than \lstinline![(k, v)]!.
-  \item \lstinline!FullList! can be unpacked into the \lstinline!Tip!
+  \item \code{List k v} uses 2 fewer words per key/value pair
+    than \code{[(k, v)]}.
+  \item \code{FullList} can be unpacked into the \code{Tip}
     constructor as it's a product type, saving 2 more words.
-  \item Always unpack word sized types, like \lstinline!Int!, unless
+  \item Always unpack word sized types, like \code{Int}, unless
     you really need them to be lazy.
   \end{itemize}
 \end{frame}
@@ -153,7 +160,7 @@ data List k v = Nil | Cons !k !v !(List k v)
 \begin{frame}
   \frametitle{Benchmarks}
 
-  Keys: $2^{12}$ random 8-byte \lstinline!ByteString!s
+  Keys: $2^{12}$ random 8-byte \code{ByteString}s
 
   \bigskip
   \begin{tabular}{|c|c|c|}
@@ -164,13 +171,13 @@ data List k v = Nil | Cons !k !v !(List k v)
   \end{tabular}
   \bigskip
 
-  \lstinline!delete! performs like \lstinline!insert!.
+  \code{delete} performs like \code{insert}.
 \end{frame}
 
 \begin{frame}
   \frametitle{Can we do better?}
   \begin{itemize}
-  \item We still need to perform $O(min(W, \log n))$ \lstinline!Int!
+  \item We still need to perform $O(min(W, \log n))$ \code{Int}
     comparisons, where $W$ is the number of bits in a word.
   \item The memory overhead per key/value pair is still quite high.
   \end{itemize}
@@ -226,10 +233,10 @@ data Array a = Array !(Array# a)
     didn't perform well.
     \item Improved performance by
       \begin{itemize}
-        \item replacing use of \lstinline!Data.Vector! by a
+        \item replacing use of \code{Data.Vector} by a
           specialized array type,
         \item paying careful attention to strictness, and
-        \item using GHC's new \texttt{INLINABLE} pragma.
+        \item using GHC's new \code{INLINABLE} pragma.
       \end{itemize}
   \end{itemize}
 \end{frame}
@@ -237,7 +244,7 @@ data Array a = Array !(Array# a)
 \begin{frame}
   \frametitle{Benchmarks}
 
-  Keys: $2^{12}$ random 8-byte \lstinline!ByteString!s
+  Keys: $2^{12}$ random 8-byte \code{ByteString}s
 
   \bigskip
   \begin{tabular}{|c|c|c|c|}
@@ -253,9 +260,9 @@ data Array a = Array !(Array# a)
   \frametitle{Where is all the time spent?}
 
   \begin{itemize}
-  \item Most time in \lstinline!insert! is spent copying small arrays.
-  \item Array copying is implemented using \lstinline!indexArray\#!
-    and \lstinline!writeArray\#!, which results in poor performance.
+  \item Most time in \code{insert} is spent copying small arrays.
+  \item Array copying is implemented using \code{indexArray\#}
+    and \code{writeArray\#}, which results in poor performance.
   \item When cloning an array, we are force to first fill the new
     array with dummy elements, followed by copying over the elements
     from the old array.
@@ -269,7 +276,7 @@ data Array a = Array !(Array# a)
   \item Daniel Peebles have implemented a set of new primops for
     copying array in GHC.
   \item The first implementation showed a 20\% performance improvement
-    for \lstinline!insert!.
+    for \code{insert}.
   \item Copying arrays is still slow so there might be room for big
     improvements still.
   \end{itemize}
@@ -285,7 +292,7 @@ data Array a = Array !(Array# a)
   \item Clojure uses a clever trick to unpack keys and values directly
     into the arrays; keys are stored at even positions and values at
     odd positions.
-  \item GHC 7.2 will use 1 less word for \lstinline!Array!.
+  \item GHC 7.2 will use 1 less word for \code{Array}.
   \end{itemize}
 \end{frame}
 
@@ -299,7 +306,7 @@ data Array a = Array !(Array# a)
   \end{itemize}
 
   \bigskip
-  Keys: $2^{12}$ random 8-byte \lstinline!ByteString!s
+  Keys: $2^{12}$ random 8-byte \code{ByteString}s
 
   \bigskip
   \begin{tabular}{|c|c|}
@@ -328,6 +335,10 @@ data Array a = Array !(Array# a)
   \item There are new interesting data structures out there that have,
     or could have, an efficient persistent implementation.
   \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \includegraphics[width=\textwidth]{hamt.pdf}
 \end{frame}
 
 \end{document}
