@@ -82,8 +82,9 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{Milan Straka's idea: Patricia trees as sparse arrays}
+  \frametitle{Idea: Patricia trees as sparse arrays}
   \begin{itemize}
+  \item Straka (2010)
   \item We can use hashing without using hash tables!
   \item A Patricia tree implements a persistent, sparse array.
   \item Patricia trees are as twice fast as size balanced trees, but
@@ -94,67 +95,27 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{Implementation tricks}
+  \frametitle{Collisions are easy to deal with}
   \begin{itemize}
   \item Patricia trees implement a sparse, persistent array of size
     $2^{32}$ (or $2^{64}$).
   \item Hashing using this many buckets makes collisions rare: for
     $2^{24}$ entries we expect about 32,000 single collisions.
-  \item Linked lists are a perfectly adequate collision resolution
-    strategy.
+  \item \textbf{Implication:} Linked lists are a perfectly adequate
+    collision resolution strategy.
   \end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]
-  \frametitle{First attempt at an implementation}
-  \begin{lstlisting}
--- Defined in the containers package.
-data IntMap a
-    = Nil
-    | Tip {-# UNPACK #-} !Key a
-    | Bin {-# UNPACK #-} !Prefix
-          {-# UNPACK #-} !Mask
-          !(IntMap a) !(IntMap a)
-
-type Prefix = Int
-type Mask   = Int
-type Key    = Int
-
-newtype HashMap k v = HashMap (IntMap [(k, v)])
-  \end{lstlisting}
-\end{frame}
-
-
-\begin{frame}[fragile]
-  \frametitle{A more memory efficient implementation}
-  \begin{lstlisting}
-data HashMap k v
-    = Nil
-    | Tip {-# UNPACK #-} !Hash
-          {-# UNPACK #-} !(FL.FullList k v)
-    | Bin {-# UNPACK #-} !Prefix
-          {-# UNPACK #-} !Mask
-          !(HashMap k v) !(HashMap k v)
-
-type Prefix = Int
-type Mask   = Int
-type Hash   = Int
-
-data FullList k v = FL !k !v !(List k v)
-data List k v = Nil | Cons !k !v !(List k v)
-  \end{lstlisting}
-\end{frame}
-
-\begin{frame}
   \frametitle{Reducing the memory footprint}
-  \begin{itemize}
-  \item \code{List k v} uses 2 fewer words per key/value pair
-    than \code{[(k, v)]}.
-  \item \code{FullList} can be unpacked into the \code{Tip}
-    constructor as it's a product type, saving 2 more words.
-  \item Always unpack word sized types, like \code{Int}, unless
-    you really need them to be lazy.
-  \end{itemize}
+
+  Naive implementation:
+  \begin{lstlisting}
+    newtype HashMap k v = HashMap (IntMap [(k, v)])
+  \end{lstlisting}
+
+  A specialized implementation using constructor unpacking uses 2
+  words less per key/value pair.
 \end{frame}
 
 \begin{frame}
@@ -163,15 +124,15 @@ data List k v = Nil | Cons !k !v !(List k v)
   Keys: $2^{12}$ random 8-byte \code{ByteString}s
 
   \bigskip
-  \begin{tabular}{|c|c|c|}
-    \hline  & \textbf{Map} & \textbf{HashMap} \\
-    \hline \textbf{insert} & 1.00 & 0.43 \\
-    \hline \textbf{lookup} & 1.00 & 0.28 \\
-    \hline
+  \begin{center}
+  \begin{tabular}{r|rrr}
+                  & \multicolumn{2}{c}{Runtime ($\mu$s)} & Runtime \\
+                  & Map & HashMap & \% increase \\
+    \hline lookup & 1956 &  916 & -53\% \\
+           insert & 3543 & 1855 & -48\% \\
+           delete & 3791 & 1838 & -52\% \\
   \end{tabular}
-  \bigskip
-
-  \code{delete} performs like \code{insert}.
+  \end{center}
 \end{frame}
 
 \begin{frame}
@@ -179,7 +140,8 @@ data List k v = Nil | Cons !k !v !(List k v)
   \begin{itemize}
   \item We still need to perform $O(min(W, \log n))$ \code{Int}
     comparisons, where $W$ is the number of bits in a word.
-  \item The memory overhead per key/value pair is still quite high.
+  \item The memory overhead per key/value pair is still high, about 9
+    words per key/value pair.
   \end{itemize}
 \end{frame}
 
@@ -206,6 +168,12 @@ data List k v = Nil | Cons !k !v !(List k v)
   \end{itemize}
 \end{frame}
 
+\begin{frame}
+  \frametitle{HAMT}
+  \includegraphics[width=\textwidth]{hamt.pdf}
+\end{frame}
+
+
 \begin{frame}[fragile]
   \frametitle{The Haskell definition of a HAMT}
   \begin{lstlisting}
@@ -220,9 +188,8 @@ data HashMap k v
                 {-# UNPACK #-} !(Array (Leaf k v))
 
 type Bitmap = Word
-
+type Hash = Int
 data Array a = Array !(Array# a)
-                     {-# UNPACK #-} !Int
   \end{lstlisting}
 \end{frame}
 
@@ -247,13 +214,15 @@ data Array a = Array !(Array# a)
   Keys: $2^{12}$ random 8-byte \code{ByteString}s
 
   \bigskip
-  \begin{tabular}{|c|c|c|c|}
-    \hline  & \textbf{Map} & \textbf{HashMap} &
-    \textbf{HashMap (HAMT)} \\
-    \hline \textbf{insert} & 1.00 & 0.43 & 1.21 \\
-    \hline \textbf{lookup} & 1.00 & 0.28 & 0.21 \\
-    \hline
+  \begin{center}
+  \begin{tabular}{r|rrr}
+                  & \multicolumn{2}{c}{Runtime ($\mu$s)} & Runtime \\
+                  & Patricia & HAMT                      & \% increase \\
+    \hline lookup &  916 &  477 & -48\% \\
+           insert & 1855 & 1998 & 8\% \\
+           delete & 1838 & 2303 & 25\% \\
   \end{tabular}
+  \end{center}
 \end{frame}
 
 \begin{frame}
@@ -335,10 +304,6 @@ data Array a = Array !(Array# a)
   \item There are new interesting data structures out there that have,
     or could have, an efficient persistent implementation.
   \end{itemize}
-\end{frame}
-
-\begin{frame}
-  \includegraphics[width=\textwidth]{hamt.pdf}
 \end{frame}
 
 \end{document}
