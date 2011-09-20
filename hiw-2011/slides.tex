@@ -82,44 +82,44 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{Idea: Patricia trees as sparse arrays}
+  \frametitle{Milan Straka's idea: Patricia tries as sparse arrays}
   \begin{itemize}
-  \item Straka (2010)
   \item We can use hashing without using hash tables!
-  \item A Patricia tree implements a persistent, sparse array.
-  \item Patricia trees are as twice fast as size balanced trees, but
-    only work with \code{Int} keys.
+  \item A Patricia trie implements a persistent, sparse array.
   \item Use hashing to derive an \code{Int} from an arbitrary
     key.
+  \item Patricia tries are much faster than size balanced trees, but
+    only work with \code{Int} keys.
   \end{itemize}
 \end{frame}
 
 \begin{frame}
   \frametitle{Collisions are easy to deal with}
   \begin{itemize}
-  \item Patricia trees implement a sparse, persistent array of size
+  \item Patricia tries implement a sparse, persistent array of size
     $2^{32}$ (or $2^{64}$).
   \item Hashing using this many buckets makes collisions rare: for
     $2^{24}$ entries we expect about 32,000 single collisions.
-  \item \textbf{Implication:} Linked lists are a perfectly adequate
-    collision resolution strategy.
+  \item Implication: Linked lists are a perfectly adequate collision
+    resolution strategy.
   \end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]
-  \frametitle{Reducing the memory footprint}
+  \frametitle{HashMap using a Patricia trie}
 
   Naive implementation:
+
   \begin{lstlisting}
     newtype HashMap k v = HashMap (IntMap [(k, v)])
   \end{lstlisting}
 
-  A specialized implementation using constructor unpacking uses 2
-  words less per key/value pair.
+  By inlining (``unpacking'') the list and pair constructors we can
+  save 2 words of memory less per key/value pair.
 \end{frame}
 
 \begin{frame}
-  \frametitle{Benchmarks}
+  \frametitle{Benchmark: Map vs HashMap}
 
   Keys: $2^{12}$ random 8-byte \code{ByteString}s
 
@@ -157,7 +157,7 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{Hash-array mapped tries in Clojure}
+  \frametitle{Persistent hash-array mapped tries}
   \begin{itemize}
   \item Shallow tree with high branching factor.
   \item Each node, except the leaf nodes, contains an array of up to
@@ -182,47 +182,26 @@ data HashMap k v
     | BitmapIndexed
           {-# UNPACK #-} !Bitmap
           {-# UNPACK #-} !(Array (HashMap k v))
-    | Leaf {-# UNPACK #-} !(Leaf k v)
+    | Leaf {-# UNPACK #-} !Hash !k v
     | Full {-# UNPACK #-} !(Array (HashMap k v))
     | Collision {-# UNPACK #-} !Hash
                 {-# UNPACK #-} !(Array (Leaf k v))
 
 type Bitmap = Word
 type Hash = Int
-data Array a = Array !(Array# a)
+data Array a = Array (Array# a)
   \end{lstlisting}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Making it fast}
+  \frametitle{High performance Haskell programming}
+  Optimized implementation using standard techniques:
   \begin{itemize}
-  \item The initial implementation by Edward Z. Yang: correct but
-    didn't perform well.
-    \item Improved performance by
-      \begin{itemize}
-        \item replacing use of \code{Data.Vector} by a
-          specialized array type,
-        \item paying careful attention to strictness, and
-        \item using GHC's new \code{INLINABLE} pragma.
-      \end{itemize}
+  \item constructor unpacking,
+  \item GHC's new \code{INLINABLE} pragma, and
+  \item paying careful attention to strictness.
   \end{itemize}
-\end{frame}
-
-\begin{frame}
-  \frametitle{Benchmarks}
-
-  Keys: $2^{12}$ random 8-byte \code{ByteString}s
-
-  \bigskip
-  \begin{center}
-  \begin{tabular}{r|rrr}
-                  & \multicolumn{2}{c}{Runtime ($\mu$s)} & Runtime \\
-                  & Patricia & HAMT                      & \% increase \\
-    \hline lookup &  916 &  477 & -48\% \\
-           insert & 1855 & 1998 & 8\% \\
-           delete & 1838 & 2303 & 25\% \\
-  \end{tabular}
-  \end{center}
+  \code{insert} performance still bad.
 \end{frame}
 
 \begin{frame}
@@ -239,30 +218,61 @@ data Array a = Array !(Array# a)
 \end{frame}
 
 \begin{frame}
-  \frametitle{A better array copy}
+  \frametitle{Reducing the node fan-out}
 
   \begin{itemize}
-  \item Daniel Peebles have implemented a set of new primops for
-    copying array in GHC.
-  \item The first implementation showed a 20\% performance improvement
-    for \code{insert}.
-  \item Copying arrays is still slow so there might be room for big
-    improvements still.
+  \item Bagwell's original formulation used a fan-out of 32.
+  \item A fan-out of 16 seems to provide a better trade-off between
+    \code{lookup} and \code{insert} performance in our setting.
   \end{itemize}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Other possible performance improvements}
+  \frametitle{A better array copy}
+
   \begin{itemize}
-  \item Even faster array copying using SSE instructions, inline
-    memory allocation, and C-- inlining.
-  \item Use dedicated bit population count instruction on
-    architectures where it's available.
-  \item Clojure uses a clever trick to unpack keys and values directly
-    into the arrays; keys are stored at even positions and values at
-    odd positions.
-  \item GHC 7.2 will use 1 less word for \code{Array}.
+  \item Daniel Peebles and I have implemented a set of new primops for
+    copying arrays in GHC.
+  \item The implementation generates straight-line code for copies of
+    statically know small size.
+  \item The first implementation showed a 20\% performance improvement
+    for \code{insert}.
   \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Faster population count}
+  \begin{itemize}
+  \item Tried several bit population count implementations.
+  \item Best speed/memory-use trade-off is a lookup table based
+    approach.
+  \item Using the \code{POPCNT} SSE 4.2 instructions improves the
+    performance of \code{lookup} by 12\%.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Benchmark: Patricia trie vs HAMT}
+
+  Keys: $2^{12}$ random 8-byte \code{ByteString}s
+
+  \bigskip
+  \begin{center}
+  \begin{tabular}{r|rrr}
+                  & \multicolumn{2}{c}{Runtime ($\mu$s)} & Runtime \\
+                  & Patricia & HAMT                      & \% increase \\
+    \hline lookup &  916 &  477 & -48\% \\
+           insert & 1855 & 1998 & 8\% \\
+           delete & 1838 & 2303 & 25\% \\
+  \end{tabular}
+  \end{center}
+
+  The benchmarks don't include the \code{POPCNT} optimization, due to
+  it not being available on many architectures.
+\end{frame}
+
+\begin{frame}
+  \frametitle{Memory usage}
 \end{frame}
 
 \begin{frame}
@@ -283,18 +293,6 @@ data Array a = Array !(Array# a)
     \hline \textbf{fromList/mutating} & 0.50 \\
     \hline
   \end{tabular}
-\end{frame}
-
-\begin{frame}
-  \frametitle{Abstracting over collection types}
-  \begin{itemize}
-  \item We will soon have two map types worth using (one ordered and one
-    unordered).
-  \item We want to write functions that work with both types, without a
-    $O(n)$ conversion cost.
-  \item Use type families to abstract over different concrete
-    implementations.
-  \end{itemize}
 \end{frame}
 
 \begin{frame}
