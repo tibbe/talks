@@ -33,7 +33,7 @@
 \frame{\titlepage}
 
 \begin{frame}
-  \frametitle{Motivating problem: Twitter data analys}
+  \frametitle{Motivating problem: Twitter data analysis}
 
   ``I'm computing a communication graph from Twitter data and then
   scan it daily to allocate social capital to nodes behaving in a good
@@ -115,7 +115,7 @@
   \end{lstlisting}
 
   By inlining (``unpacking'') the list and pair constructors we can
-  save 2 words of memory less per key/value pair.
+  save 2 words of memory per key/value pair.
 \end{frame}
 
 \begin{frame}
@@ -157,7 +157,7 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{Persistent hash-array mapped tries}
+  \frametitle{Hash-array mapped tries}
   \begin{itemize}
   \item Shallow tree with high branching factor.
   \item Each node, except the leaf nodes, contains an array of up to
@@ -211,7 +211,7 @@ data Array a = Array (Array# a)
   \item Most time in \code{insert} is spent copying small arrays.
   \item Array copying is implemented using \code{indexArray\#}
     and \code{writeArray\#}, which results in poor performance.
-  \item When cloning an array, we are force to first fill the new
+  \item When cloning an array, we are forced to first fill the new
     array with dummy elements, followed by copying over the elements
     from the old array.
   \end{itemize}
@@ -224,6 +224,7 @@ data Array a = Array (Array# a)
   \item Bagwell's original formulation used a fan-out of 32.
   \item A fan-out of 16 seems to provide a better trade-off between
     \code{lookup} and \code{insert} performance in our setting.
+  \item This improved insert performance a lot.
   \end{itemize}
 \end{frame}
 
@@ -234,7 +235,8 @@ data Array a = Array (Array# a)
   \item Daniel Peebles and I have implemented a set of new primops for
     copying arrays in GHC.
   \item The implementation generates straight-line code for copies of
-    statically know small size.
+    statically known small size, and uses a fast \code{memcpy}
+    otherwise.
   \item The first implementation showed a 20\% performance improvement
     for \code{insert}.
   \end{itemize}
@@ -272,7 +274,13 @@ data Array a = Array (Array# a)
 \end{frame}
 
 \begin{frame}
-  \frametitle{Memory usage}
+  \frametitle{Memory usage: Patricia trie}
+  \includegraphics[angle=90,width=\textwidth]{patricia-mem.pdf}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Memory usage: HAMT}
+  \includegraphics[angle=90,width=\textwidth]{hamt-mem.pdf}
 \end{frame}
 
 \begin{frame}
@@ -281,18 +289,20 @@ data Array a = Array (Array# a)
   \item In many cases maps are created in one go from a sequence of
     key/value pairs.
   \item We can optimize for this case by repeatedly mutating the HAMT
-    and freeze it when we're done.
+    and freezing it when we're done.
   \end{itemize}
 
   \bigskip
   Keys: $2^{12}$ random 8-byte \code{ByteString}s
 
   \bigskip
-  \begin{tabular}{|c|c|}
-    \hline \textbf{fromList/pure} & 1.00 \\
-    \hline \textbf{fromList/mutating} & 0.50 \\
-    \hline
+  \begin{center}
+  \begin{tabular}{c|c}
+                         & Runtime (\%) \\
+    \hline fromList/pure & 100 \\
+           fromList/mutating & 50 \\
   \end{tabular}
+  \end{center}
 \end{frame}
 
 \begin{frame}
