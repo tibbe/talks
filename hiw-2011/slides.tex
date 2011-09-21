@@ -26,7 +26,7 @@
 \begin{document}
 \lstset{
   language=Haskell,
-  basicstyle=\small,
+  basicstyle=\small\ttfamily,
   keywordstyle=,
   commentstyle=\color{CodeColor}}
 
@@ -179,13 +179,10 @@
   \begin{lstlisting}
 data HashMap k v
     = Empty
-    | BitmapIndexed
-          {-# UNPACK #-} !Bitmap
-          {-# UNPACK #-} !(Array (HashMap k v))
-    | Leaf {-# UNPACK #-} !Hash !k v
-    | Full {-# UNPACK #-} !(Array (HashMap k v))
-    | Collision {-# UNPACK #-} !Hash
-                {-# UNPACK #-} !(Array (Leaf k v))
+    | BitmapIndexed !Bitmap !(Array (HashMap k v))
+    | Leaf !Hash !k v
+    | Full !(Array (HashMap k v))
+    | Collision !Hash !(Array (Leaf k v))
 
 type Bitmap = Word
 type Hash = Int
@@ -218,11 +215,11 @@ data Array a = Array (Array# a)
 \end{frame}
 
 \begin{frame}
-  \frametitle{Reducing the node fan-out}
+  \frametitle{Reducing the node fanout}
 
   \begin{itemize}
-  \item Bagwell's original formulation used a fan-out of 32.
-  \item A fan-out of 16 seems to provide a better trade-off between
+  \item Bagwell's original formulation used a fanout of 32.
+  \item A fanout of 16 seems to provide a better trade-off between
     \code{lookup} and \code{insert} performance in our setting.
   \item This improved insert performance a lot.
   \end{itemize}
