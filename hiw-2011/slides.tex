@@ -223,7 +223,7 @@ data Array a = Array (Array# a)
 \end{frame}
 
 \begin{frame}
-  \frametitle{Optimizing insertion: Copy less}
+  \frametitle{Optimizing insertion: copy less}
 
   \begin{itemize}
   \item Bagwell's original formulation used a fanout of 32.
@@ -234,7 +234,7 @@ data Array a = Array (Array# a)
 \end{frame}
 
 \begin{frame}
-  \frametitle{Optimizing insertion: Copy faster}
+  \frametitle{Optimizing insertion: copy faster}
 
   \begin{itemize}
   \item Daniel Peebles and I have implemented a set of new primops for
@@ -245,6 +245,28 @@ data Array a = Array (Array# a)
   \item The first implementation showed a 20\% performance improvement
     for \code{insert}.
   \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Optimizing insertion: common patterns}
+  \begin{itemize}
+  \item In many cases maps are created in one go from a sequence of
+    key/value pairs.
+  \item We can optimize for this case by repeatedly mutating the HAMT
+    and freezing it when we're done.
+  \end{itemize}
+
+  \bigskip
+  Keys: $2^{12}$ random 8-byte \code{ByteString}s
+
+  \bigskip
+  \begin{center}
+  \begin{tabular}{c|c}
+                         & Runtime (\%) \\
+    \hline fromList/pure & 100 \\
+           fromList/mutating & 50 \\
+  \end{tabular}
+  \end{center}
 \end{frame}
 
 \begin{frame}
@@ -296,34 +318,19 @@ data Array a = Array (Array# a)
 \end{frame}
 
 \begin{frame}
-  \frametitle{Optimize common cases}
-  \begin{itemize}
-  \item In many cases maps are created in one go from a sequence of
-    key/value pairs.
-  \item We can optimize for this case by repeatedly mutating the HAMT
-    and freezing it when we're done.
-  \end{itemize}
-
-  \bigskip
+  \frametitle{Summary}
   Keys: $2^{12}$ random 8-byte \code{ByteString}s
 
   \bigskip
   \begin{center}
-  \begin{tabular}{c|c}
-                         & Runtime (\%) \\
-    \hline fromList/pure & 100 \\
-           fromList/mutating & 50 \\
+  \begin{tabular}{r|rrr}
+                  & \multicolumn{2}{c}{Runtime ($\mu$s)} & Runtime \\
+                  & Map & HAMT & \% increase \\
+    \hline lookup & 1956 &  477 & -76\% \\
+           insert & 3543 & 1998 & -44\% \\
+           delete & 3791 & 2303 & -39\% \\
   \end{tabular}
   \end{center}
-\end{frame}
-
-\begin{frame}
-  \frametitle{Summary}
-  \begin{itemize}
-  \item Hashing allows us to create more efficient data structures.
-  \item There are new interesting data structures out there that have,
-    or could have, an efficient persistent implementation.
-  \end{itemize}
 \end{frame}
 
 \end{document}
