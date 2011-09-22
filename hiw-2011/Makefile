@@ -3,7 +3,7 @@ TARGET = slides.pdf
 all: $(TARGET)
 
 clean:
-	rm -f *.aux *.dvi *.log *.nav *.out *.snm *.toc *.pdf *.vrb *.hi *.o *.prof
+	rm -f *.aux *.dvi *.log *.nav *.out *.snm *.toc  $(TARGET) *.vrb *.hi *.o *.prof
 
 distclean: clean
 	rm -f $(TARGET)

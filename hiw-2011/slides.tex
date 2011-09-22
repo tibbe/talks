@@ -35,10 +35,12 @@
 \begin{frame}
   \frametitle{Motivating problem: Twitter data analysis}
 
-  ``I'm computing a communication graph from Twitter data and then
-  scan it daily to allocate social capital to nodes behaving in a good
-  karmic manner.  The graph is culled from 100 million tweets and has
-  about 3 million nodes.''
+  \begin{quote}
+    I'm computing a communication graph from Twitter data and then
+    scan it daily to allocate social capital to nodes behaving in a
+    good karmic manner.  The graph is culled from 100 million tweets
+    and has about 3 million nodes.
+  \end{quote}
 
   \bigskip
   We need a data structure that is
@@ -53,7 +55,9 @@
 
   \begin{itemize}
   \item \code{Data.Map} is the most commonly used map type.
-  \item It's implemented using size balanced trees.
+  \item It's implemented using size balanced trees and is
+    representative of the performance of other binary tree
+    implementations.
   \item Keys can be of any type, as long as values of the type can be
     ordered.
   \end{itemize}
@@ -81,16 +85,19 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}
+\begin{frame}[fragile]
   \frametitle{Milan Straka's idea: Patricia tries as sparse arrays}
   \begin{itemize}
   \item We can use hashing without using hash tables!
-  \item A Patricia trie implements a persistent, sparse array.
+  \item An \code{Data.IntMap} trie implements a persistent, sparse
+    array and is much faster than \code{Data.Map}.
   \item Use hashing to derive an \code{Int} from an arbitrary
     key.
-  \item Patricia tries are much faster than size balanced trees, but
-    only work with \code{Int} keys.
   \end{itemize}
+  \begin{lstlisting}
+    class Hashable a where
+      hash :: a -> Int
+  \end{lstlisting}
 \end{frame}
 
 \begin{frame}
@@ -100,8 +107,8 @@
     $2^{32}$ (or $2^{64}$).
   \item Hashing using this many buckets makes collisions rare: for
     $2^{24}$ entries we expect about 32,000 single collisions.
-  \item Implication: Linked lists are a perfectly adequate collision
-    resolution strategy.
+  \item Implication: We can use any old collision handling strategy
+    (e.g. chaining using linked lists).
   \end{itemize}
 \end{frame}
 
@@ -138,6 +145,8 @@
 \begin{frame}
   \frametitle{Can we do better?}
   \begin{itemize}
+  \item Imperative hash tables still perform better, perhaps there's
+    room for improvement.
   \item We still need to perform $O(min(W, \log n))$ \code{Int}
     comparisons, where $W$ is the number of bits in a word.
   \item The memory overhead per key/value pair is still high, about 9
@@ -202,20 +211,19 @@ data Array a = Array (Array# a)
 \end{frame}
 
 \begin{frame}
-  \frametitle{Where is all the time spent?}
+  \frametitle{Optimizing insertion}
 
   \begin{itemize}
   \item Most time in \code{insert} is spent copying small arrays.
-  \item Array copying is implemented using \code{indexArray\#}
-    and \code{writeArray\#}, which results in poor performance.
-  \item When cloning an array, we are forced to first fill the new
-    array with dummy elements, followed by copying over the elements
-    from the old array.
+  \item Array copying is implemented in Haskell and GHC doesn't apply
+    enough loop optimizations to make it run fast.
+  \item When allocating arrays GHC fills the array with dummy
+    elements, which are immediately overwritten.
   \end{itemize}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Reducing the node fanout}
+  \frametitle{Optimizing insertion: Copy less}
 
   \begin{itemize}
   \item Bagwell's original formulation used a fanout of 32.
@@ -226,7 +234,7 @@ data Array a = Array (Array# a)
 \end{frame}
 
 \begin{frame}
-  \frametitle{A better array copy}
+  \frametitle{Optimizing insertion: Copy faster}
 
   \begin{itemize}
   \item Daniel Peebles and I have implemented a set of new primops for
@@ -240,7 +248,7 @@ data Array a = Array (Array# a)
 \end{frame}
 
 \begin{frame}
-  \frametitle{Faster population count}
+  \frametitle{Optimizing lookup: Faster population count}
   \begin{itemize}
   \item Tried several bit population count implementations.
   \item Best speed/memory-use trade-off is a lookup table based
@@ -259,7 +267,7 @@ data Array a = Array (Array# a)
   \begin{center}
   \begin{tabular}{r|rrr}
                   & \multicolumn{2}{c}{Runtime ($\mu$s)} & Runtime \\
-                  & Patricia & HAMT                      & \% increase \\
+                  & IntMap & HAMT                      & \% increase \\
     \hline lookup &  916 &  477 & -48\% \\
            insert & 1855 & 1998 & 8\% \\
            delete & 1838 & 2303 & 25\% \\
@@ -272,12 +280,19 @@ data Array a = Array (Array# a)
 
 \begin{frame}
   \frametitle{Memory usage: Patricia trie}
-  \includegraphics[angle=90,width=\textwidth]{patricia-mem.pdf}
+  Total: 85 MB, tree: 59MB ($2^{20}$ \code{Int} entries)
+  \begin{center}
+  \includegraphics[angle=90,scale=0.3]{patricia-mem.pdf}
+  \end{center}
 \end{frame}
 
 \begin{frame}
   \frametitle{Memory usage: HAMT}
-  \includegraphics[angle=90,width=\textwidth]{hamt-mem.pdf}
+
+  Total: 78MB, tree: 44MB ($2^{20}$ \code{Int} entries)
+  \begin{center}
+  \includegraphics[angle=90,scale=0.3]{hamt-mem.pdf}
+  \end{center}
 \end{frame}
 
 \begin{frame}
