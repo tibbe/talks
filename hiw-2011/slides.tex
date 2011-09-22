@@ -229,7 +229,7 @@ data Array a = Array (Array# a)
   \item Bagwell's original formulation used a fanout of 32.
   \item A fanout of 16 seems to provide a better trade-off between
     \code{lookup} and \code{insert} performance in our setting.
-  \item This improved insert performance a lot.
+  \item Improved performance by 14\%
   \end{itemize}
 \end{frame}
 
@@ -242,8 +242,7 @@ data Array a = Array (Array# a)
   \item The implementation generates straight-line code for copies of
     statically known small size, and uses a fast \code{memcpy}
     otherwise.
-  \item The first implementation showed a 20\% performance improvement
-    for \code{insert}.
+  \item Improved performance by 20\%
   \end{itemize}
 \end{frame}
 
