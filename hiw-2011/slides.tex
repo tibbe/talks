@@ -86,11 +86,11 @@
 \end{frame}
 
 \begin{frame}[fragile]
-  \frametitle{Milan Straka's idea: IntMaps as sparse arrays}
+  \frametitle{Milan Straka's idea: IntMaps as arrays}
   \begin{itemize}
   \item We can use hashing without using hash tables!
-  \item An \code{Data.IntMap} implements a persistent, sparse
-    array and is much faster than \code{Data.Map}.
+  \item \code{Data.IntMap} implements a persistent array and is much
+    faster than \code{Data.Map}.
   \item Use hashing to derive an \code{Int} from an arbitrary
     key.
   \end{itemize}
@@ -207,7 +207,7 @@ data Array a = Array (Array# a)
   \item GHC's new \code{INLINABLE} pragma, and
   \item paying careful attention to strictness.
   \end{itemize}
-  \code{insert} performance still bad.
+  \code{insert} performance still bad (e.g compare to hash tables).
 \end{frame}
 
 \begin{frame}
