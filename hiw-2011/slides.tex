@@ -280,7 +280,7 @@ data Array a = Array (Array# a)
 
 \begin{frame}
   \frametitle{Memory usage: Patricia trie}
-  Total: 85 MB, tree: 59MB ($2^{20}$ \code{Int} entries)
+  Total: 96 MB, tree: 66MB ($2^{20}$ \code{Int} entries)
   \begin{center}
   \includegraphics[angle=90,scale=0.3]{patricia-mem.pdf}
   \end{center}
@@ -289,7 +289,7 @@ data Array a = Array (Array# a)
 \begin{frame}
   \frametitle{Memory usage: HAMT}
 
-  Total: 78MB, tree: 44MB ($2^{20}$ \code{Int} entries)
+  Total: 71MB, tree: 41MB ($2^{20}$ \code{Int} entries)
   \begin{center}
   \includegraphics[angle=90,scale=0.3]{hamt-mem.pdf}
   \end{center}
