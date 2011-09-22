@@ -86,7 +86,7 @@
 \end{frame}
 
 \begin{frame}[fragile]
-  \frametitle{Milan Straka's idea: Patricia tries as sparse arrays}
+  \frametitle{Milan Straka's idea: IntMaps as sparse arrays}
   \begin{itemize}
   \item We can use hashing without using hash tables!
   \item An \code{Data.IntMap} trie implements a persistent, sparse
@@ -103,7 +103,7 @@
 \begin{frame}
   \frametitle{Collisions are easy to deal with}
   \begin{itemize}
-  \item Patricia tries implement a sparse, persistent array of size
+  \item \code{IntMap} implements a sparse, persistent array of size
     $2^{32}$ (or $2^{64}$).
   \item Hashing using this many buckets makes collisions rare: for
     $2^{24}$ entries we expect about 32,000 single collisions.
@@ -113,7 +113,7 @@
 \end{frame}
 
 \begin{frame}[fragile]
-  \frametitle{HashMap using a Patricia trie}
+  \frametitle{HashMap implemented using an IntMap}
 
   Naive implementation:
 
@@ -281,7 +281,7 @@ data Array a = Array (Array# a)
 \end{frame}
 
 \begin{frame}
-  \frametitle{Benchmark: Patricia trie vs HAMT}
+  \frametitle{Benchmark: IntMap-based vs HAMT}
 
   Keys: $2^{12}$ random 8-byte \code{ByteString}s
 
@@ -301,7 +301,7 @@ data Array a = Array (Array# a)
 \end{frame}
 
 \begin{frame}
-  \frametitle{Memory usage: Patricia trie}
+  \frametitle{Memory usage: IntMap-based}
   Total: 96 MB, tree: 66MB ($2^{20}$ \code{Int} entries)
   \begin{center}
   \includegraphics[angle=90,scale=0.3]{patricia-mem.pdf}
