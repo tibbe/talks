@@ -16,10 +16,12 @@ We need a data structure that is
 
 # Persistent maps in Haskell
 
-* \code{Data.Map} is the most commonly used map type.
+* `Data.Map` is the most commonly used map type.
+
 * It's implemented using size balanced trees and is
   representative of the performance of other binary tree
   implementations.
+
 * Keys can be of any type, as long as values of the type can be
   ordered.
 
@@ -27,9 +29,12 @@ We need a data structure that is
 # Real world performance of Data.Map
 
 * Good in theory: no more than $O(\log n)$ comparisons.
+
 * Not great in practice: up to $O(\log n)$ comparisons!
+
 * Many common types are expensive to compare e.g
-  \code{String}, \code{ByteString}, and \code{Text}.
+  `String`, `ByteString`, and `Text`.
+
 * Given a string of length $k$, we need $O(k*\log n)$
   comparisons to look up an entry.
 
@@ -38,15 +43,18 @@ We need a data structure that is
 
 * Hash tables perform well with string keys: $O(k)$ amortized
   lookup time for strings of length $k$.
+
 * However, we want persistent maps, not mutable hash tables.
 
 
 # Milan Straka's idea: Patricia tries as sparse arrays
 
 * We can use hashing without using hash tables!
-* An \code{Data.IntMap} trie implements a persistent, sparse
-  array and is much faster than \code{Data.Map}.
-* Use hashing to derive an \code{Int} from an arbitrary
+
+* An `Data.IntMap` trie implements a persistent, sparse
+  array and is much faster than `Data.Map`.
+
+* Use hashing to derive an `Int` from an arbitrary
   key.
 
 ~~~~ {.haskell}
@@ -59,8 +67,10 @@ class Hashable a where
 
 * Patricia tries implement a sparse, persistent array of size
   $2^{32}$ (or $2^{64}$).
+
 * Hashing using this many buckets makes collisions rare: for
   $2^{24}$ entries we expect about 32,000 single collisions.
+
 * Implication: We can use any old collision handling strategy
   (e.g. chaining using linked lists).
 
@@ -79,7 +89,7 @@ save 2 words of memory per key/value pair.
 
 # Benchmark: Map vs HashMap
 
-Keys: $2^{12}$ random 8-byte \code{ByteString}s
+Keys: $2^{12}$ random 8-byte `ByteString`s
 
 \bigskip
 \begin{center}
@@ -97,8 +107,10 @@ Keys: $2^{12}$ random 8-byte \code{ByteString}s
 
 * Imperative hash tables still perform better, perhaps there's
   room for improvement.
-* We still need to perform $O(min(W, \log n))$ \code{Int}
+
+* We still need to perform $O(min(W, \log n))$ `Int`
   comparisons, where $W$ is the number of bits in a word.
+
 * The memory overhead per key/value pair is still high, about 9
   words per key/value pair.
 
@@ -107,17 +119,23 @@ Keys: $2^{12}$ random 8-byte \code{ByteString}s
 
 * Clojure uses a \emph{hash-array mapped trie} (HAMT) data
   structure to implement persistent maps.
+
 * Described in the paper ``Ideal Hash Trees'' by Bagwell (2001).
+
 * Originally a mutable data structure implemented in C++.
+
 * Clojure's persistent version was created by Rich Hickey.
 
 
 # Hash-array mapped tries
 
 * Shallow tree with high branching factor.
+
 * Each node, except the leaf nodes, contains an array of up to
   32 elements.
+
 * 5 bits of the hash are used to index the array at each level.
+
 * A clever trick, using bit population count, is used to
   represent sparse arrays.
 
@@ -145,17 +163,21 @@ data Array a = Array (Array# a)
 Optimized implementation using standard techniques:
 
 * constructor unpacking,
-* GHC's new \code{INLINABLE} pragma, and
+
+* GHC's new `INLINABLE` pragma, and
+
 * paying careful attention to strictness.
 
-\code{insert} performance still bad.
+`insert` performance still bad.
 
 
 # Optimizing insertion
 
-* Most time in \code{insert} is spent copying small arrays.
+* Most time in `insert` is spent copying small arrays.
+
 * Array copying is implemented in Haskell and GHC doesn't apply
   enough loop optimizations to make it run fast.
+
 * When allocating arrays GHC fills the array with dummy
   elements, which are immediately overwritten.
 
@@ -163,8 +185,10 @@ Optimized implementation using standard techniques:
 # Optimizing insertion: copy less
 
 * Bagwell's original formulation used a fanout of 32.
+
 * A fanout of 16 seems to provide a better trade-off between
-  \code{lookup} and \code{insert} performance in our setting.
+  `lookup` and `insert` performance in our setting.
+
 * This improved insert performance a lot.
 
 
@@ -172,23 +196,26 @@ Optimized implementation using standard techniques:
 
 * Daniel Peebles and I have implemented a set of new primops for
   copying arrays in GHC.
+
 * The implementation generates straight-line code for copies of
-  statically known small size, and uses a fast \code{memcpy}
+  statically known small size, and uses a fast `memcpy`
   otherwise.
+
 * The first implementation showed a 20\% performance improvement
-  for \code{insert}.
+  for `insert`.
 
 
 # Optimizing insertion: common patterns
 
 * In many cases maps are created in one go from a sequence of
   key/value pairs.
+
 * We can optimize for this case by repeatedly mutating the HAMT
   and freezing it when we're done.
 
 
 \bigskip
-Keys: $2^{12}$ random 8-byte \code{ByteString}s
+Keys: $2^{12}$ random 8-byte `ByteString`s
 
 \bigskip
 \begin{center}
@@ -203,15 +230,17 @@ Keys: $2^{12}$ random 8-byte \code{ByteString}s
 # Optimizing lookup: Faster population count
 
 * Tried several bit population count implementations.
+
 * Best speed/memory-use trade-off is a lookup table based
   approach.
-* Using the \code{POPCNT} SSE 4.2 instructions improves the
-  performance of \code{lookup} by 12\%.
+
+* Using the `POPCNT` SSE 4.2 instructions improves the
+  performance of `lookup` by 12\%.
 
 
 # Benchmark: Patricia trie vs HAMT
 
-Keys: $2^{12}$ random 8-byte \code{ByteString}s
+Keys: $2^{12}$ random 8-byte `ByteString`s
 
 \bigskip
 \begin{center}
@@ -224,12 +253,12 @@ Keys: $2^{12}$ random 8-byte \code{ByteString}s
 \end{tabular}
 \end{center}
 
-The benchmarks don't include the \code{POPCNT} optimization, due to
+The benchmarks don't include the `POPCNT` optimization, due to
 it not being available on many architectures.
 
 
 # Memory usage: Patricia trie
-Total: 96 MB, tree: 66MB ($2^{20}$ \code{Int} entries)
+Total: 96 MB, tree: 66MB ($2^{20}$ `Int` entries)
 \begin{center}
 \includegraphics[angle=90,scale=0.3]{patricia-mem.pdf}
 \end{center}
@@ -237,14 +266,14 @@ Total: 96 MB, tree: 66MB ($2^{20}$ \code{Int} entries)
 
 # Memory usage: HAMT
 
-Total: 71MB, tree: 41MB ($2^{20}$ \code{Int} entries)
+Total: 71MB, tree: 41MB ($2^{20}$ `Int` entries)
 \begin{center}
 \includegraphics[angle=90,scale=0.3]{hamt-mem.pdf}
 \end{center}
 
 
 # Summary
-Keys: $2^{12}$ random 8-byte \code{ByteString}s
+Keys: $2^{12}$ random 8-byte `ByteString`s
 
 \bigskip
 \begin{center}
