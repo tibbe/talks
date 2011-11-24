@@ -117,7 +117,7 @@ Keys: $2^{12}$ random 8-byte `ByteString`s
 
 # Borrowing from our neighbours
 
-* Clojure uses a \emph{hash-array mapped trie} (HAMT) data
+* Clojure uses a _hash-array mapped trie_ (HAMT) data
   structure to implement persistent maps.
 
 * Described in the paper ``Ideal Hash Trees'' by Bagwell (2001).
