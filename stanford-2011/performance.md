@@ -461,7 +461,7 @@ delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
 delete k0 = go h0 k0
   where
     h0 = hash k0
-    go h !k t@(Bin sm l r)
+    go !h !k t@(Bin sm l r)
         | nomatch h sm = t
         | zero h sm    = bin sm (go h k l) r
         | otherwise    = bin sm l (go h k r)
@@ -474,11 +474,12 @@ delete k0 = go h0 k0
 {-# INLINABLE delete #-}
 ~~~~
 
-* Without the bang pattern, `go` is not strict in the key `k` (why?).
+* Without the bang patterns, `go` is not strict in the key `k` or the
+  hash `h` (why?).
 
-* Making `go` strict in the key argument allows GHC to unbox these
-  values in the loop (after `delete` has been inlined and the key type
-  is known).
+* Making `go` strict in the key and hash arguments allows GHC to unbox
+  these values in the loop (after `delete` has been inlined and the
+  key type is known).
 
 
 # Benchmark
@@ -491,7 +492,7 @@ benchmarking Map/lookup/ByteString
 mean: 1.590200 ms
 std dev: 30.69466 us
 
-benchmarking lookup/ByteString
+benchmarking HashMap/lookup/ByteString
 mean: 575.9371 us
 std dev: 8.790398 us
 
@@ -499,7 +500,7 @@ benchmarking Map/insert/ByteString
 mean: 2.957678 ms
 std dev: 451.8105 us
 
-benchmarking insert/ByteString
+benchmarking HashMap/insert/ByteString
 mean: 1.506817 ms
 std dev: 301.2400 us
 ~~~~
