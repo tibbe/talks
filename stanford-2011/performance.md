@@ -1,4 +1,6 @@
 % Faster persistent data structures through hashing
+% Johan Tibell
+% November 30, 2011
 
 # About me
 
@@ -11,8 +13,8 @@
 
 # This lecture
 
-* We will design a new data structure and use its design to better
-  understand how to write high performance Haskell code.
+* We will design a new data structure and learn how to write high
+  performance Haskell code, at the same time.
 
 * We will revisit some optimization techniques covered earlier, but
   through a different lens (and with pretty pictures.)
@@ -37,15 +39,15 @@ We need a data structure that is
 
 * `Data.Map` is the most commonly used map type.
 
-* It's implemented using size balanced trees and is
-  representative of the performance of other binary tree
-  implementations.
+* It's implemented using size balanced trees and its performance is
+  representative of binary tree implementations (e.g. AVL trees,
+  red-black trees).
 
 * Keys can be of any type, as long as values of the type can be
   ordered.
 
 
-# Real world performance of Data.Map
+# Real world performance of Map
 
 * Good in theory: no more than $O(\log n)$ comparisons.
 
@@ -70,13 +72,12 @@ We need a data structure that is
 
 * We can use hashing without using hash tables!
 
-* `Data.IntMap` is much faster than `Map` but only works with `Int`
+* `Data.IntMap` is much faster than `Map`, but only works with `Int`
   keys.  It's implemented using radix trees (aka Patricia tries).
 
 * An `IntMap` can be used as a persistent, sparse array.
 
-* Use hashing to derive an `Int` from an arbitrary
-  key.
+* We can use hashing to derive an `Int` from an arbitrary key:
 
 ~~~~ {.haskell}
 class Hashable a where
@@ -88,7 +89,7 @@ class Hashable a where
 
 # Aside: collisions are easy to deal with
 
-* `IntMap` implement a sparse, persistent array of size $2^{32}$ (or
+* `IntMap` implements a sparse, persistent array of size $2^{32}$ (or
   $2^{64}$).
 
 * Hashing using this many buckets makes collisions rare: for
@@ -240,8 +241,8 @@ When the pragma applies, it offers the following benefits:
 * Removes indirection
 
 Caveat: There are (rare) cases where unpacking hurts performance
-e.g. if the fields are passed to a non-strict function, as they need
-to be reboxed.
+e.g. if the value is passed to a non-strict function, as it needs to
+be reboxed.
 
 **Unpacking is one of the most important optimizations available to
  us.**
@@ -321,7 +322,7 @@ Yes!  We can make use of the following:
 * The list of collisions is never empty (and almost always contains a
   single element).
 
-* We don't need to store arbitraty elements in the collisions lists,
+* We don't need to store arbitraty elements in the list of collisions,
   just pairs:
 
 ~~~~ {.haskell}
@@ -364,6 +365,14 @@ data List k v = Nil | Cons !k v !(List k v)
 In general: $5N + 4(N-1)$ words + size of keys & values
 
 
+# Remaining sources of inefficiency
+
+* Keys and values are still boxed.
+
+* There are quite a few interior nodes.  A wider fanning tree would be
+  better.  (See my talk at this year's Haskell Implementors Workshop.)
+
+
 # Reasoning about laziness
 
 A function application is only evaluated if its result is needed,
@@ -374,7 +383,7 @@ therefore:
 * Any expression whose value is required to decide which RHS to
   evaluate, must be evaluated.
 
-These two properties allows us to use "back-to-front" analysis (known
+These two properties allow us to use "back-to-front" analysis (known
 as demand/strictness analysis) to figure which arguments a function is
 strict in.
 
@@ -389,7 +398,7 @@ max x y
     | otherwise = x  -- arbitrary
 ~~~~
 
-* To pick one of the three RHS, we must evaluate `x > y`.
+* To pick one of the three RHSs, we must evaluate `x > y`.
 
 * Therefore we must evaluate _both_ `x` and `y`.
 
@@ -446,14 +455,14 @@ delete k0 = go h0 k0
   where
     h0 = hash k0
     go h !k t@(Bin sm l r)
-      | nomatch h sm = t
-      | zero h sm    = bin sm (go h k l) r
-      | otherwise    = bin sm l (go h k r)
+        | nomatch h sm = t
+        | zero h sm    = bin sm (go h k l) r
+        | otherwise    = bin sm l (go h k r)
     go h k t@(Tip h' l)
-      | h == h'      = case FL.delete k l of
-          Nothing -> Nil
-          Just l' -> Tip h' l'
-      | otherwise    = t
+        | h == h'      = case FL.delete k l of
+            Nothing -> Nil
+            Just l' -> Tip h' l'
+        | otherwise    = t
     go _ _ Nil         = Nil
 {-# INLINABLE delete #-}
 ~~~~
@@ -511,8 +520,7 @@ Maximum residency is the number we care about.
 
 # Summary
 
-* When working on performance critical code, focus on memory layout
-  first, micro optimzations second (just like in any other language).
+* Focus on memory layout and good performance almost always follows.
 
 * Strictness annotations are mainly used on loop variables and in data
   type definitions.
