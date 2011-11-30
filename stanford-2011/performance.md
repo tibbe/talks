@@ -491,13 +491,13 @@ benchmarking Map/lookup/ByteString
 mean: 1.590200 ms
 std dev: 30.69466 us
 
-benchmarking Map/insert/ByteString
-mean: 2.957678 ms
-std dev: 451.8105 us
-
 benchmarking lookup/ByteString
 mean: 575.9371 us
 std dev: 8.790398 us
+
+benchmarking Map/insert/ByteString
+mean: 2.957678 ms
+std dev: 451.8105 us
 
 benchmarking insert/ByteString
 mean: 1.506817 ms
