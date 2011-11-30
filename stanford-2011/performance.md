@@ -252,7 +252,7 @@ be reboxed.
  us.**
 
 
-# A comparison with C
+# A structural comparison with C
 
 By reference:
 
