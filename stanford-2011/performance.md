@@ -4,7 +4,7 @@
 
 * Software engineer at Google
 
-* Started using Haskell 2005.
+* Started using Haskell in 2005.
 
 * Worked on (among other things) GHC's new scalable I/O
   implementation.
@@ -134,7 +134,6 @@ an `Uno` takes 2 words, and a `Due` takes 3.
 * Exception: a constructor with no fields (like `Nothing` or `True`)
   takes no space, as it's shared among all uses.
 
-
 # Memory layout
 
 Here's how GHC represents the list `[1,2]` in memory:
@@ -238,11 +237,11 @@ When the pragma applies, it offers the following benefits:
 * Reduced memory usage (4 words in the case of
   `IntPair`)
 
-* Fewer indirections
+* Removes indirection
 
-Caveat: There are cases where unpacking hurts performance e.g. if the
-fields are passed to a non-strict function, as they need to be
-reboxed.
+Caveat: There are (rare) cases where unpacking hurts performance
+e.g. if the fields are passed to a non-strict function, as they need
+to be reboxed.
 
 **Unpacking is one of the most important optimizations available to
  us.**
@@ -329,7 +328,8 @@ Yes!  We can make use of the following:
 data List k v = Nil | Cons k v (List k v)
 ~~~~
 
-is more memory efficient than `[(k, v)]`.
+is more memory efficient than `[(k, v)]`, as the pair constructor has
+been unpacked into the `Cons` constructor.
 
 
 # An improved HashMap data type
@@ -340,7 +340,7 @@ data HashMap k v
           !(HashMap k v)
           !(HashMap k v)
     | Tip {-# UNPACK #-} !Hash
-          {-# UNPACK #-} !(FullList k v)
+          {-# UNPACK #-} !(FullList k v)  -- now monomorphic
     | Nil
 
 type SuffixMask = Int
@@ -349,6 +349,11 @@ type Hash = Int
 data FullList k v = FL !k v !(List k v)
 data List k v = Nil | Cons !k v !(List k v)
 ~~~~
+
+* The `FullList` type has only one constructor, so it can be unpacked.
+
+* In the common case, the tail of the `FullList` is empty and thus
+  points to a shared `Nil` constructor.
 
 # Improved HashMap data type memory layout
 
@@ -359,7 +364,164 @@ data List k v = Nil | Cons !k v !(List k v)
 In general: $5N + 4(N-1)$ words + size of keys & values
 
 
-# Memory footprints of some common data types
+# Reasoning about laziness
+
+A function application is only evaluated if its result is needed,
+therefore:
+
+* One of the function's right-hand sides will be evaluated.
+
+* Any expression whose value is required to decide which RHS to
+  evaluate, must be evaluated.
+
+These two properties allows us to use "back-to-front" analysis (known
+as demand/strictness analysis) to figure which arguments a function is
+strict in.
+
+
+# Reasoning about laziness: example
+
+~~~~ {.haskell}
+max :: Int -> Int -> Int
+max x y
+    | x > y     = x
+    | x < y     = y
+    | otherwise = x  -- arbitrary
+~~~~
+
+* To pick one of the three RHS, we must evaluate `x > y`.
+
+* Therefore we must evaluate _both_ `x` and `y`.
+
+* Therefore `max` is strict in both `x` and `y`.
+
+
+# Poll
+
+~~~~ {.haskell}
+data Tree = Leaf | Node Int Tree Tree
+
+insert :: Int -> Tree -> Tree
+insert x Leaf   = Node x Leaf Leaf
+insert x (Node y l r)
+    | x < y     = Node y (insert x l) r
+    | x > y     = Node y l (insert x r)
+    | otherwise = Node x l r
+~~~~
+
+Which argument(s) is `insert` strict in?
+
+* None
+
+* 1st
+
+* 2nd
+
+* Both
+
+
+# Solution
+
+Only the second, as inserting into an empty tree can be done without
+comparing the value being inserted.  For example, this expression
+
+~~~~ {.haskell}
+insert (1 `div` 0) Leaf
+~~~~
+
+does not raise a division-by-zero expression but
+
+~~~~ {.haskell}
+insert (1 `div` 0) (Node 2 Leaf Leaf)
+~~~~
+
+does.
+
+
+# Strictness annotations in the real world
+
+~~~~ {.haskell}
+delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
+delete k0 = go h0 k0
+  where
+    h0 = hash k0
+    go h !k t@(Bin sm l r)
+      | nomatch h sm = t
+      | zero h sm    = bin sm (go h k l) r
+      | otherwise    = bin sm l (go h k r)
+    go h k t@(Tip h' l)
+      | h == h'      = case FL.delete k l of
+          Nothing -> Nil
+          Just l' -> Tip h' l'
+      | otherwise    = t
+    go _ _ Nil         = Nil
+{-# INLINABLE delete #-}
+~~~~
+
+* Without the bang pattern, `go` is not strict in the key `k` (why?).
+
+* Making `go` strict in the key argument allows GHC to unbox these
+  values in the loop (after `delete` has been inlined and the key type
+  is known).
+
+
+# Benchmark
+
+So, is `HashMap` faster than `Map`?  Benchmark: $2^12$ random
+`ByteString` keys of length 8
+
+~~~~
+benchmarking Map/lookup/ByteString
+mean: 1.590200 ms, lb 1.584947 ms, ub 1.597055 ms, ci 0.950
+std dev: 30.69466 us, lb 24.94621 us, ub 39.41903 us, ci 0.950
+
+benchmarking Map/insert/ByteString
+mean: 2.957678 ms, lb 2.891839 ms, ub 3.086595 ms, ci 0.950
+std dev: 451.8105 us, lb 261.2515 us, ub 688.6132 us, ci 0.950
+
+benchmarking lookup/ByteString
+mean: 575.9371 us, lb 574.3850 us, ub 577.8249 us, ci 0.950
+std dev: 8.790398 us, lb 7.440493 us, ub 10.91274 us, ci 0.950
+
+benchmarking insert/ByteString
+mean: 1.506817 ms, lb 1.451558 ms, ub 1.569359 ms, ci 0.950
+std dev: 301.2400 us, lb 270.4358 us, ub 324.0515 us, ci 0.950
+~~~~
+
+Yes!
+
+
+# Memory usage
+
+Benchmark: $2^20$ key-value pairs of type `Int`, on a 64-bit machine
+
+Estimated: $8 * (5N + 4(N-1) + 4N)$ = 104 MB
+
+Real:
+
+~~~~
+   716,158,856 bytes allocated in the heap
+ 1,218,205,432 bytes copied during GC
+   106,570,936 bytes maximum residency (16 sample(s))
+     3,636,304 bytes maximum slop
+           269 MB total memory in use (0 MB lost due to fragmentation)
+~~~~
+
+Maximum residency is the number we care about.
+
+# Summary
+
+* When working on performance critical code, focus on memory layout
+  first, micro optimzations second (just like in any other language).
+
+* Strictness annotations are mainly used on loop variables and in data
+  type definitions.
+
+* `Data.HashMap` is implemented in the unordered-containers package.
+  You can get the source from
+  [http://github.com/tibbe/unordered-containers](http://github.com/tibbe/unordered-containers)
+
+# Bonus: memory footprint of some common data types
 
 Write this down on an index card and keep around for
 back-of-the-envelope calculations.
@@ -408,97 +570,3 @@ back-of-the-envelope calculations.
 </tbody></table>
 
 (Some caveates apply.)
-
-# Reasoning about laziness
-
-A function application is only evaluated if its result is needed,
-therefore:
-
-* One of the function's right-hand sides will be evaluated.
-
-* Any expression whose value is required to decide which RHS to
-  evaluate, must be evaluated.
-
-By using this "back-to-front" analysis we can figure which arguments a
-function is strict in.
-
-
-# Reasoning about laziness: example
-
-~~~~ {.haskell}
-max :: Int -> Int -> Int
-max x y
-    | x > y     = x
-    | x < y     = y
-    | otherwise = x  -- arbitrary
-~~~~
-
-* To pick one of the three RHS, we must evaluate `x > y`.
-
-* Therefore we must evaluate _both_ `x` and `y`.
-
-* Therefore `max` is strict in both `x` and `y`.
-
-
-# Poll
-
-~~~~ {.haskell}
-data Tree = Leaf | Node Int Tree Tree
-
-insert :: Int -> Tree -> BST
-insert x Leaf   = Node x Leaf Leaf
-insert x (Node x' l r)
-    | x < x'    = Node x' (insert x l) r
-    | x > x'    = Node x' l (insert x r)
-    | otherwise = Node x l r
-~~~~
-
-Which argument(s) is `insert` strict in?
-
-* None
-
-* 1st
-
-* 2nd
-
-* Both
-
-
-# Solution
-
-Only the second, as inserting into an empty tree can be done without
-comparing the value being inserted.  For example, this expression
-
-~~~~ {.haskell}
-insert (1 `div` 0) Leaf
-~~~~
-
-does not raise a division-by-zero expression but
-
-~~~~ {.haskell}
-insert (1 `div` 0) (Node 2 Leaf Leaf)
-~~~~
-
-does.
-
-
-# Benchmark
-
-So, is `HashMap` faster than `Map`?
-
-
-# Memory usage
-Total: 96 MB, tree: 66MB ($2^{20}$ `Int` entries)
-\begin{center}
-\includegraphics[angle=90,scale=0.3]{patricia-mem.pdf}
-\end{center}
-
-
-# Summary
-
-* When working on performance critical code, focus on memory layout
-  first, micro optimzations second (just like in any other language).
-
-* `Data.HashMap` is implemented in the unordered-containers package.
-  You can get the source from
-  [http://github.com/tibbe/unordered-containers](http://github.com/tibbe/unordered-containers)
