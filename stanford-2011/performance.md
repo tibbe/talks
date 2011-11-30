@@ -207,14 +207,17 @@ GHC gives us some control over data representation via the
   field of another constructor, removing one level of indirection
   and one constructor header.
 
-* Any strict, monomorphic, single-constructor field can be
-  unpacked.
+* Only fields that are strict, monomorphic, and single-constructor
+  can be unpacked.
 
 The pragma is added just before the bang pattern:
 
 ~~~~ {.haskell}
 data Foo = Foo {-# UNPACK #-} !SomeType
 ~~~~
+
+GHC 7 and later will warn if an `UNPACK` pragma cannot be used because
+it fails the use constraint.
 
 
 # Unpacking example
@@ -237,8 +240,7 @@ data IntPair = IP {-# UNPACK #-} !Int
 
 When the pragma applies, it offers the following benefits:
 
-* Reduced memory usage (4 words in the case of
-  `IntPair`)
+* Reduced memory usage (4 words saved in the case of `IntPair`)
 
 * Removes indirection
 
@@ -324,7 +326,7 @@ Yes!  We can make use of the following:
 * The list of collisions is never empty (and almost always contains a
   single element).
 
-* We don't need to store arbitraty elements in the list of collisions,
+* We don't need to store arbitrary elements in the list of collisions,
   just pairs:
 
 ~~~~ {.haskell}
@@ -372,7 +374,10 @@ In general: $5N + 4(N-1)$ words + size of keys & values
 * Keys and values are still boxed.
 
 * There are quite a few interior nodes.  A wider fanning tree would be
-  better.  (See my talk at this year's Haskell Implementors Workshop.)
+  better.  (See the
+  [video](http://www.youtube.com/watch?v=Dn74rhQrKeQ) and
+  [slides](http://www.haskell.org/wikiupload/6/65/HIW2011-Talk-Tibell.pdf)
+  from my talk at HIW2011.)
 
 
 # Reasoning about laziness
@@ -483,20 +488,20 @@ So, is `HashMap` faster than `Map`?  Benchmark: $2^12$ random
 
 ~~~~
 benchmarking Map/lookup/ByteString
-mean: 1.590200 ms, lb 1.584947 ms, ub 1.597055 ms, ci 0.950
-std dev: 30.69466 us, lb 24.94621 us, ub 39.41903 us, ci 0.950
+mean: 1.590200 ms
+std dev: 30.69466 us
 
 benchmarking Map/insert/ByteString
-mean: 2.957678 ms, lb 2.891839 ms, ub 3.086595 ms, ci 0.950
-std dev: 451.8105 us, lb 261.2515 us, ub 688.6132 us, ci 0.950
+mean: 2.957678 ms
+std dev: 451.8105 us
 
 benchmarking lookup/ByteString
-mean: 575.9371 us, lb 574.3850 us, ub 577.8249 us, ci 0.950
-std dev: 8.790398 us, lb 7.440493 us, ub 10.91274 us, ci 0.950
+mean: 575.9371 us
+std dev: 8.790398 us
 
 benchmarking insert/ByteString
-mean: 1.506817 ms, lb 1.451558 ms, ub 1.569359 ms, ci 0.950
-std dev: 301.2400 us, lb 270.4358 us, ub 324.0515 us, ci 0.950
+mean: 1.506817 ms
+std dev: 301.2400 us
 ~~~~
 
 Yes!
@@ -579,4 +584,4 @@ back-of-the-envelope calculations.
   </tr>
 </tbody></table>
 
-(Some caveates apply.)
+(Some caveats apply.)
