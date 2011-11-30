@@ -65,7 +65,9 @@ We need a data structure that is
 * Hash tables perform well with string keys: $O(k)$ amortized
   lookup time for strings of length $k$.
 
-* However, we want persistent maps, not mutable hash tables.
+* Programs using persistent maps are easier to reason about than
+  programs using mutable hash tables, so we'd like to use the former
+  if at all possible.
 
 
 # Main idea: IntMap as a sparse array
