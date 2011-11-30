@@ -524,7 +524,8 @@ Real:
            269 MB total memory in use (0 MB lost due to fragmentation)
 ~~~~
 
-Maximum residency is the number we care about.
+Maximum residency is the number we care about (note that the value is
+sampled and thus not 100% accurate).
 
 # Summary
 
