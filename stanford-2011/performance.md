@@ -587,3 +587,25 @@ back-of-the-envelope calculations.
 </tbody></table>
 
 (Some caveats apply.)
+
+
+# Bonus: Use libraries tuned for performance
+
+Not exhaustive list:
+
+* bytestring - binary data
+
+* text - Unicode data
+
+* containers - data structures
+
+* unordered-containers - more data structures
+
+* vector - mutable/immutable boxed/unboxed vectors
+
+* aeson - JSON serialization/deserialization
+
+* binary - serialization/deserialization of binary data
+
+* attoparsec - parsing of protocols that mix binary and ASCII
+  (e.g. HTTP)
