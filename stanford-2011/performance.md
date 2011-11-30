@@ -1,5 +1,24 @@
 % Faster persistent data structures through hashing
 
+# About me
+
+* Software engineer at Google
+
+* Started using Haskell 2005.
+
+* Worked on (among other things) GHC's new scalable I/O
+  implementation.
+
+# This lecture
+
+* We will design a new data structure and use its design to better
+  understand how to write high performance Haskell code.
+
+* We will revisit some optimization techniques covered earlier, but
+  through a different lens (and with pretty pictures.)
+
+* Ask questions!
+
 # Motivating problem: Twitter data analysis
 
 > "I'm computing a communication graph from Twitter data and then scan
@@ -47,12 +66,14 @@ We need a data structure that is
 * However, we want persistent maps, not mutable hash tables.
 
 
-# Milan Straka's idea: Patricia tries as sparse arrays
+# Main idea: IntMap as a sparse array
 
 * We can use hashing without using hash tables!
 
-* An `Data.IntMap` trie implements a persistent, sparse
-  array and is much faster than `Data.Map`.
+* `Data.IntMap` is much faster than `Map` but only works with `Int`
+  keys.  It's implemented using radix trees (aka Patricia tries).
+
+* An `IntMap` can be used as a persistent, sparse array.
 
 * Use hashing to derive an `Int` from an arbitrary
   key.
@@ -62,11 +83,13 @@ class Hashable a where
   hash :: a -> Int
 ~~~~
 
+* Lookup using hashing is $O(k + \log n)$ instead of $O(k * \log n)$.
 
-# Collisions are easy to deal with
 
-* Patricia tries implement a sparse, persistent array of size
-  $2^{32}$ (or $2^{64}$).
+# Aside: collisions are easy to deal with
+
+* `IntMap` implement a sparse, persistent array of size $2^{32}$ (or
+  $2^{64}$).
 
 * Hashing using this many buckets makes collisions rare: for
   $2^{24}$ entries we expect about 32,000 single collisions.
@@ -75,7 +98,7 @@ class Hashable a where
   (e.g. chaining using linked lists).
 
 
-# HashMap using a Patricia trie
+# `HashMap` implemented using an `IntMap`
 
 Naive implementation:
 
@@ -83,205 +106,399 @@ Naive implementation:
 newtype HashMap k v = HashMap (IntMap [(k, v)])
 ~~~~
 
-By inlining (``unpacking'') the list and pair constructors we can
-save 2 words of memory per key/value pair.
+We use a list of key-value pairs to handle collisions.
 
 
-# Benchmark: Map vs HashMap
+# Reasoning about space usage
 
-Keys: $2^{12}$ random 8-byte `ByteString`s
+Knowing how GHC represents values in memory is useful because
 
-\bigskip
-\begin{center}
-\begin{tabular}{r|rrr}
-                & \multicolumn{2}{c}{Runtime ($\mu$s)} & Runtime \
-                & Map & HashMap & \% increase \
-  \hline lookup & 1956 &  916 & -53\% \
-         insert & 3543 & 1855 & -48\% \
-         delete & 3791 & 1838 & -52\% \
-\end{tabular}
-\end{center}
+* it allows us to approximate memory usage, and
+
+* it allows us to count the number of indirections, which affect
+  cache behavior.
+
+
+# Memory usage for data constructors
+
+Rule of thumb: a constructor uses one word for a header, and one
+word for each field.  So e.g.
+
+~~~~ {.haskell}
+data Uno = Uno a
+data Due = Due a b
+~~~~
+
+an `Uno` takes 2 words, and a `Due` takes 3.
+
+* Exception: a constructor with no fields (like `Nothing` or `True`)
+  takes no space, as it's shared among all uses.
+
+
+# Memory layout
+
+Here's how GHC represents the list `[1,2]` in memory:
+
+<p>![](list12.png)</p>
+
+* Each box represents one machine word
+
+* Arrows represent pointers
+
+* Each constructor has one word overhead for e.g. GC information
+
+
+# Refresher: unboxed types
+
+GHC defines a number of _unboxed_ types.  These typically represent
+primitive machine types.
+
+* By convention, the names of these types end with a
+  `#`.
+
+* Most unboxed types take one word (except
+  e.g. `Double#` on 32-bit machines)
+
+* Values of unboxed types cannot be thunks.
+
+* The basic types are defined in terms unboxed types e.g.
+
+~~~~ {.haskell}
+data Int = I# Int#
+~~~~
+
+* We call types such as `Int` _boxed_ types
+
+
+# Poll
+
+How many machine words is needed to store a value of this data type:
+
+~~~~ {.haskell}
+data IntPair = IP Int Int
+~~~~
+
+* 3?
+
+* 5?
+
+* 7?
+
+* 9?
+
+Tip: Draw a boxes-and-arrows diagram.
+
+
+# IntPair memory layout
+
+<p>![](intpair.png)</p>
+
+So an `IntPair` value takes 7 words.
+
+
+# Refresher: unpacking
+
+GHC gives us some control over data representation via the
+`UNPACK` pragma.
+
+* The pragma unpacks the contents of a constructor into the
+  field of another constructor, removing one level of indirection
+  and one constructor header.
+
+* Any strict, monomorphic, single-constructor field can be
+  unpacked.
+
+The pragma is added just before the bang pattern:
+
+~~~~ {.haskell}
+data Foo = Foo {-# UNPACK #-} !SomeType
+~~~~
+
+
+# Unpacking example
+
+~~~~ {.haskell}
+data IntPair = IP Int Int
+~~~~
+
+<p>![](intpair.png)</p>
+
+~~~~ {.haskell}
+data IntPair = IP {-# UNPACK #-} !Int
+                  {-# UNPACK #-} !Int
+~~~~
+
+<p>![](intpair-unpacked.png)</p>
+
+
+# Benefits of unpacking
+
+When the pragma applies, it offers the following benefits:
+
+* Reduced memory usage (4 words in the case of
+  `IntPair`)
+
+* Fewer indirections
+
+Caveat: There are cases where unpacking hurts performance e.g. if the
+fields are passed to a non-strict function, as they need to be
+reboxed.
+
+**Unpacking is one of the most important optimizations available to
+ us.**
+
+
+# A comparison with C
+
+By reference:
+
+~~~~ {.haskell}
+-- Haskell
+data A = A !Int
+~~~~
+
+~~~~ {.c}
+// C
+struct A {
+  int *a;
+};
+~~~~
+
+By value:
+
+~~~~ {.haskell}
+-- Haskell
+data A = A {-# UNPACK #-} !Int
+~~~~
+
+~~~~ {.c}
+// C
+struct A {
+  int a;
+};
+~~~~
+
+If you can figure out which C representation you want, you can figure
+out which Haskell representation you want.
+
+
+# Exercise: HashMap memory layout
+
+Here are the data types used in our naive `HashMap` implementation:
+
+~~~~ {.haskell}
+newtype HashMap k v = HashMap (IntMap [(k, v)])
+
+data IntMap a
+    = Bin {-# UNPACK #-} !SuffixMask
+          !(IntMap a)
+          !(IntMap a)
+    | Tip {-# UNPACK #-} !Key a
+    | Nil
+
+type SuffixMask = Int
+type Key = Int
+~~~~
+
+Exercise:
+
+* Draw a diagram of a map containing two key-value pairs of type `Int`
+(i.e. `Bin ... (Tip ...) (Tip ...)`).
+
+* How many words of memory does the map use?
+
+
+# Solution
+
+<p>![](hashmap-naive.png)</p>
+
+30 words! 22 (73%) of them overhead.
 
 
 # Can we do better?
 
-* Imperative hash tables still perform better, perhaps there's
-  room for improvement.
+Yes!  We can make use of the following:
 
-* We still need to perform $O(min(W, \log n))$ `Int`
-  comparisons, where $W$ is the number of bits in a word.
+* The list of collisions is never empty (and almost always contains a
+  single element).
 
-* The memory overhead per key/value pair is still high, about 9
-  words per key/value pair.
+* We don't need to store arbitraty elements in the collisions lists,
+  just pairs:
 
-
-# Borrowing from our neighbours
-
-* Clojure uses a _hash-array mapped trie_ (HAMT) data
-  structure to implement persistent maps.
-
-* Described in the paper ``Ideal Hash Trees'' by Bagwell (2001).
-
-* Originally a mutable data structure implemented in C++.
-
-* Clojure's persistent version was created by Rich Hickey.
-
-
-# Hash-array mapped tries
-
-* Shallow tree with high branching factor.
-
-* Each node, except the leaf nodes, contains an array of up to
-  32 elements.
-
-* 5 bits of the hash are used to index the array at each level.
-
-* A clever trick, using bit population count, is used to
-  represent sparse arrays.
-
-
-# HAMT
-\includegraphics[width=\textwidth]{hamt.pdf}
-
-
-# The Haskell definition of a HAMT
 ~~~~ {.haskell}
-data HashMap k v
-    = Empty
-    | BitmapIndexed !Bitmap !(Array (HashMap k v))
-    | Leaf !Hash !k v
-    | Full !(Array (HashMap k v))
-    | Collision !Hash !(Array (Leaf k v))
-
-type Bitmap = Word
-type Hash = Int
-data Array a = Array (Array# a)
+data List k v = Nil | Cons k v (List k v)
 ~~~~
 
-
-# High performance Haskell programming
-Optimized implementation using standard techniques:
-
-* constructor unpacking,
-
-* GHC's new `INLINABLE` pragma, and
-
-* paying careful attention to strictness.
-
-`insert` performance still bad.
+is more memory efficient than `[(k, v)]`.
 
 
-# Optimizing insertion
+# An improved HashMap data type
 
-* Most time in `insert` is spent copying small arrays.
+~~~~ {.haskell}
+data HashMap k v
+    = Bin {-# UNPACK #-} !SuffixMask
+          !(HashMap k v)
+          !(HashMap k v)
+    | Tip {-# UNPACK #-} !Hash
+          {-# UNPACK #-} !(FullList k v)
+    | Nil
 
-* Array copying is implemented in Haskell and GHC doesn't apply
-  enough loop optimizations to make it run fast.
+type SuffixMask = Int
+type Hash = Int
 
-* When allocating arrays GHC fills the array with dummy
-  elements, which are immediately overwritten.
+data FullList k v = FL !k v !(List k v)
+data List k v = Nil | Cons !k v !(List k v)
+~~~~
 
+# Improved HashMap data type memory layout
 
-# Optimizing insertion: copy less
+<p>![](hashmap.png)</p>
 
-* Bagwell's original formulation used a fanout of 32.
+22 words. 14 (64%) of them overhead.
 
-* A fanout of 16 seems to provide a better trade-off between
-  `lookup` and `insert` performance in our setting.
-
-* This improved insert performance a lot.
-
-
-# Optimizing insertion: copy faster
-
-* Daniel Peebles and I have implemented a set of new primops for
-  copying arrays in GHC.
-
-* The implementation generates straight-line code for copies of
-  statically known small size, and uses a fast `memcpy`
-  otherwise.
-
-* The first implementation showed a 20\% performance improvement
-  for `insert`.
+In general: $5N + 4(N-1)$ words + size of keys & values
 
 
-# Optimizing insertion: common patterns
+# Memory footprints of some common data types
 
-* In many cases maps are created in one go from a sequence of
-  key/value pairs.
+Write this down on an index card and keep around for
+back-of-the-envelope calculations.
 
-* We can optimize for this case by repeatedly mutating the HAMT
-  and freezing it when we're done.
+<table>
+  <tbody><tr>
+    <th>Data type</th>
+    <th>Memory footprint</th>
+  </tr>
+  <tr>
+    <td><code>Data.ByteString</code></td>
+    <td>9 words + N bytes</td>
+  </tr>
+  <tr>
+    <td><code>Data.Text</code></td>
+    <td>6 words + 2N bytes</td>
+  </tr>
+  <tr>
+    <td><code>String</code></td>
+    <td>5N words</td>
+  </tr>
+  <tr>
+    <td><code>Data.Map</code></td>
+    <td>6N words + size of keys &amp; values</td>
+  </tr>
+  <tr>
+    <td><code>Data.Set</code></td>
+    <td>5N words + size of elements</td>
+  </tr>
+  <tr>
+    <td><code>Data.IntMap</code></td>
+    <td>3N + 5(N-1) words + size of values</td>
+  </tr>
+  <tr>
+    <td><code>Data.IntSet</code></td>
+    <td>2N + 5(N-1) words</td>
+  </tr>
+  <tr>
+    <td><code>Data.HashMap</code></td>
+    <td>5N + 4(N-1) words + size of keys &amp; values</td>
+  </tr>
+  <tr>
+    <td><code>Data.HashSet</code></td>
+    <td>5N + 4(N-1) words + size of elements</td>
+  </tr>
+</tbody></table>
+
+(Some caveates apply.)
+
+# Reasoning about laziness
+
+A function application is only evaluated if its result is needed,
+therefore:
+
+* One of the function's right-hand sides will be evaluated.
+
+* Any expression whose value is required to decide which RHS to
+  evaluate, must be evaluated.
+
+By using this "back-to-front" analysis we can figure which arguments a
+function is strict in.
 
 
-\bigskip
-Keys: $2^{12}$ random 8-byte `ByteString`s
+# Reasoning about laziness: example
 
-\bigskip
-\begin{center}
-\begin{tabular}{c|c}
-                       & Runtime (\%) \
-  \hline fromList/pure & 100 \
-         fromList/mutating & 50 \
-\end{tabular}
-\end{center}
+~~~~ {.haskell}
+max :: Int -> Int -> Int
+max x y
+    | x > y     = x
+    | x < y     = y
+    | otherwise = x  -- arbitrary
+~~~~
 
+* To pick one of the three RHS, we must evaluate `x > y`.
 
-# Optimizing lookup: Faster population count
+* Therefore we must evaluate _both_ `x` and `y`.
 
-* Tried several bit population count implementations.
-
-* Best speed/memory-use trade-off is a lookup table based
-  approach.
-
-* Using the `POPCNT` SSE 4.2 instructions improves the
-  performance of `lookup` by 12\%.
+* Therefore `max` is strict in both `x` and `y`.
 
 
-# Benchmark: Patricia trie vs HAMT
+# Poll
 
-Keys: $2^{12}$ random 8-byte `ByteString`s
+~~~~ {.haskell}
+data Tree = Leaf | Node Int Tree Tree
 
-\bigskip
-\begin{center}
-\begin{tabular}{r|rrr}
-                & \multicolumn{2}{c}{Runtime ($\mu$s)} & Runtime \
-                & IntMap & HAMT                      & \% increase \
-  \hline lookup &  916 &  477 & -48\% \
-         insert & 1855 & 1998 & 8\% \
-         delete & 1838 & 2303 & 25\% \
-\end{tabular}
-\end{center}
+insert :: Int -> Tree -> BST
+insert x Leaf   = Node x Leaf Leaf
+insert x (Node x' l r)
+    | x < x'    = Node x' (insert x l) r
+    | x > x'    = Node x' l (insert x r)
+    | otherwise = Node x l r
+~~~~
 
-The benchmarks don't include the `POPCNT` optimization, due to
-it not being available on many architectures.
+Which argument(s) is `insert` strict in?
+
+* None
+
+* 1st
+
+* 2nd
+
+* Both
 
 
-# Memory usage: Patricia trie
+# Solution
+
+Only the second, as inserting into an empty tree can be done without
+comparing the value being inserted.  For example, this expression
+
+~~~~ {.haskell}
+insert (1 `div` 0) Leaf
+~~~~
+
+does not raise a division-by-zero expression but
+
+~~~~ {.haskell}
+insert (1 `div` 0) (Node 2 Leaf Leaf)
+~~~~
+
+does.
+
+
+# Benchmark
+
+So, is `HashMap` faster than `Map`?
+
+
+# Memory usage
 Total: 96 MB, tree: 66MB ($2^{20}$ `Int` entries)
 \begin{center}
 \includegraphics[angle=90,scale=0.3]{patricia-mem.pdf}
 \end{center}
 
 
-# Memory usage: HAMT
-
-Total: 71MB, tree: 41MB ($2^{20}$ `Int` entries)
-\begin{center}
-\includegraphics[angle=90,scale=0.3]{hamt-mem.pdf}
-\end{center}
-
-
 # Summary
-Keys: $2^{12}$ random 8-byte `ByteString`s
 
-\bigskip
-\begin{center}
-\begin{tabular}{r|rrr}
-                & \multicolumn{2}{c}{Runtime ($\mu$s)} & Runtime \
-                & Map & HAMT & \% increase \
-  \hline lookup & 1956 &  477 & -76\% \
-         insert & 3543 & 1998 & -44\% \
-         delete & 3791 & 2303 & -39\% \
-\end{tabular}
-\end{center}
+* When working on performance critical code, focus on memory layout
+  first, micro optimzations second (just like in any other language).
+
+* `Data.HashMap` is implemented in the unordered-containers package.
+  You can get the source from
+  [http://github.com/tibbe/unordered-containers](http://github.com/tibbe/unordered-containers)
