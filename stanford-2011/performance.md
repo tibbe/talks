@@ -223,7 +223,7 @@ it fails the use constraint.
 # Unpacking example
 
 ~~~~ {.haskell}
-data IntPair = IP Int Int
+data IntPair = IP !Int !Int
 ~~~~
 
 <p>![](intpair.png)</p>
