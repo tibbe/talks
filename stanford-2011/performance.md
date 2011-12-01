@@ -591,7 +591,7 @@ back-of-the-envelope calculations.
 
 # Bonus: Use libraries tuned for performance
 
-Not exhaustive list:
+Non-exhaustive list:
 
 * bytestring - binary data
 
