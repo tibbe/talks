@@ -351,8 +351,8 @@ data HashMap k v
 type SuffixMask = Int
 type Hash = Int
 
-data FullList k v = FL !k v !(List k v)
-data List k v = Nil | Cons !k v !(List k v)
+data FullList k v = FL k v !(List k v)
+data List k v = Nil | Cons k v !(List k v)
 ~~~~
 
 * The `FullList` type has only one constructor, so it can be unpacked.
