@@ -63,8 +63,8 @@ data Map k a = Tip
   increases memory usage and decreases cache locality.  Compare:
 
 ~~~~ {.haskell}
-data Tree a = Leaf | a !(Tree a) !(Tree a)
-data IntTree = IntLeaf | {-# UNPACK #-} !Int !IntTree !IntTree
+data Tree a = Leaf | Bin a !(Tree a) !(Tree a)
+data IntTree = IntLeaf | IntBin {-# UNPACK #-} !Int !IntTree !IntTree
 ~~~~
 
 * Specialized data types can be faster, but at the cost of code
