@@ -9,7 +9,7 @@
 * Some of the patterns trade generality/beauty for performance.  Only
   use these when needed.
 
-* These following patterns are guidelines, not rules.  There are
+* The following patterns are guidelines, not rules.  There are
   exceptions.
 
 # Think about your data representation
@@ -23,7 +23,7 @@ Haskell was slow.)
 
 # Unpack scalar fields
 
-Always unpack scalar fields (e.g. `Int`, `Double`)
+Always unpack scalar fields (e.g. `Int`, `Double`):
 
 ~~~~ {.haskell}
 data Vec3 = Vec3 {-# UNPACK #-} !Double
@@ -31,9 +31,12 @@ data Vec3 = Vec3 {-# UNPACK #-} !Double
                  {-# UNPACK #-} !Double
 ~~~~
 
-This is **the most important optimization available** to us.
+* This is **the most important optimization available** to us.
 
-GHC does Good Things (tm) to strict, unpacked fields.
+* GHC does Good Things (tm) to strict, unpacked fields.
+
+* You can use `-funbox-strict-fields` on a per file basis if `UNPACK`
+  is too verbose.
 
 # Use a strict spine for data structures
 
@@ -92,31 +95,30 @@ map f = go
 * You still need to figure out if you want a particular function
   inlined (e.g. see the next slide.)
 
-# Inline higher-order functions avoid indirect calls
+# Inline HOFs to avoid indirect calls
 
 * Calling an unknown function (e.g. a function that's passed as an
-  argument) is more expensive than calling a known function.
-
-* Such *indirect* calls appear in higher-order functions:
+  argument) is more expensive than calling a known function.  Such
+  *indirect* calls appear in higher-order functions:
 
 ~~~~ {.haskell}
 map :: (a -> b) -> [a] -> [b]
 map _ []     = []
 map f (x:xs) = f x : map f xs
 
-f xs = map (+1) xs  -- map is recursive => not inlined
+g xs = map (+1) xs  -- map is recursive => not inlined
 ~~~~
 
-* At the cost of increased code size, we can inline `map` into `f` by
-  using the non-recursive wrapper trick on the last slide together
-  with the `INLINE` pragma.
+* At the cost of increased code size, we can inline `map` into `g` by
+  using the non-recursive wrapper trick on the previous slide together
+  with an `INLINE` pragma.
 
-* Inline HOFs if the higher-order argument is used a lot (e.g. once
-  per iteration.)
+* Inline HOFs if the higher-order argument is used a lot (e.g. in
+  `map`, but not in `Data.Map.insertWith`.)
 
 # Use strict data types in accumulators
 
-If you're using a complex accumulator (e.g. a pair), make sure it has
+If you're using a composite accumulator (e.g. a pair), make sure it has
 strict fields.
 
 Allocates on each iteration:
@@ -158,7 +160,7 @@ return $! x + y
 
 # Beware of the lazy base case
 
-Functions that are would otherwise be strict might be made lazy by the
+Functions that would otherwise be strict might be made lazy by the
 "base case":
 
 ~~~~ {.haskell}
@@ -172,8 +174,8 @@ insert k v (Bin k' v' l r)
    | otherwise = ...
 ~~~~
 
-Since GHC does Good Things (tm) to strict arguments we can make the
-base case strict unless the extra laziness is useful:
+Since GHC does good things to strict arguments, we should make the
+base case strict, unless the extra laziness is useful:
 
 ~~~~ {.haskell}
 insert !k v Leaf = Bin k v Leaf Leaf  -- strict in @k@
@@ -187,7 +189,7 @@ cheaper.
 * Remember that many standard data types are lazy (e.g. `Maybe`,
   `Either`).
 
-* This means that's it's easy to be lazier than you intend by wrapping
+* This means that it's easy to be lazier than you intend by wrapping
   an expression in such a value:
 
 ~~~~ {.haskell}
@@ -196,5 +198,12 @@ safeDiv _ 0 = Nothing
 safeDiv x y = Just $ x / y  -- creates thunk
 ~~~~
 
-* Force the value (e.g. using `$!`) before wrapping it with the
+* Force the value (e.g. using `$!`) before wrapping it in the
   constructor.
+
+# Summary
+
+* Strict fields are good for performance.
+
+* Think about your data representation (and use `UNPACK` where
+  appropriate.)
