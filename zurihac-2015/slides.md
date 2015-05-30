@@ -2,17 +2,17 @@
 % Johan Tibell
 % May 31, 2015
 
-# Caveats
 
-* Much of this is GHC specific.
+# Goal
 
-* Some of the patterns trade generality/beauty for performance.  Only
-  use these when needed.
+The goal of this talk is to give you a set of guidelines for writing
+production quality code.
 
-* The following patterns are guidelines, not rules.  There are
-  exceptions.
+These guidelines are based on what we *actually do* in our core
+libraries (bytestring, text, containers, attoparsec, etc).
 
-# Reasoning about space usage
+
+# Preliminaries: reasoning about space usage
 
 Knowing how GHC represents values in memory is useful because
 
@@ -136,22 +136,6 @@ data IntPair = IP {-# UNPACK #-} !Int
 <p>![](intpair-unpacked.png)</p>
 
 
-# Benefits of unpacking
-
-When the pragma applies, it offers the following benefits:
-
-* Reduced memory usage (4 words saved in the case of `IntPair`)
-
-* Removes indirection
-
-Caveat: There are (rare) cases where unpacking hurts performance
-e.g. if the value is passed to a non-strict function, as it needs to
-be reboxed.
-
-**Unpacking is one of the most important optimizations available to
- us.**
-
-
 # A structural comparison with C
 
 By reference:
@@ -185,7 +169,116 @@ struct A {
 If you can figure out which C representation you want, you can figure
 out which Haskell representation you want.
 
-# TODO: Discuss why strict types remove space leaks
+# Benefits of unpacking
+
+When the pragma applies, it offers the following benefits:
+
+* Reduced memory usage (4 words saved in the case of `IntPair`)
+
+* Removes indirection
+
+Caveat: There are (rare) cases where unpacking hurts performance
+e.g. if the value is passed to a non-strict function, as it needs to
+be reboxed.
+
+**Unpacking is one of the most important optimizations available to
+ us.**
+
+
+# Compiler improvements
+
+Starting with GHC 7.10, small (pointer-sized* or less) strict fields
+are unpackaged automatically.
+
+\* Applies to `Double` even on 32-bit architectures.
+
+
+# Preliminaries: reasoning about laziness
+
+A function application is only evaluated if its result is needed,
+therefore:
+
+* One of the function's right-hand sides will be evaluated.
+
+* Any expression whose value is required to decide which RHS to
+  evaluate, must be evaluated.
+
+These two properties allow us to use "back-to-front" analysis (known
+as demand/strictness analysis) to figure which arguments a function is
+strict in.
+
+
+# Reasoning about laziness: example
+
+~~~~ {.haskell}
+max :: Int -> Int -> Int
+max x y
+    | x >= y = x
+    | x <  y = y
+~~~~
+
+* To pick one of the three RHSs, we must evaluate `x > y`.
+
+* Therefore we must evaluate _both_ `x` and `y`.
+
+* Therefore `max` is strict in both `x` and `y`.
+
+
+# Poll
+
+~~~~ {.haskell}
+data Tree = Leaf | Node Int Tree Tree
+
+insert :: Int -> Tree -> Tree
+insert x Leaf   = Node x Leaf Leaf
+insert x (Node y l r)
+    | x < y     = Node y (insert x l) r
+    | x > y     = Node y l (insert x r)
+    | otherwise = Node x l r
+~~~~
+
+Which argument(s) is `insert` strict in?
+
+* None
+
+* 1st
+
+* 2nd
+
+* Both
+
+
+# Solution
+
+Only the second, as inserting into an empty tree can be done without
+comparing the value being inserted.  For example, this expression
+
+~~~~ {.haskell}
+insert (1 `div` 0) Leaf
+~~~~
+
+does not raise a division-by-zero expression but
+
+~~~~ {.haskell}
+insert (1 `div` 0) (Node 2 Leaf Leaf)
+~~~~
+
+does.
+
+
+# Strict data types remove space leaks
+
+Given a function `f :: ... -> T` where `T` is a type with only strict
+fields*, whose value are types containing only strict fields, and so
+forth, cannot contain any thunks.
+
+Therefore, `f` cannot leak space after the evaluation of `f` has
+finished.
+
+Using strict fields is thus a way to prevent space leaks, without
+sprinkling bangs all over the definition of `f`.
+
+\* of non-function type, because closures can retain data.
 
 # TODO: Summarize the guideline for production quality code
 
