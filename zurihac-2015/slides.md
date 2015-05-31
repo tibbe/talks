@@ -3,7 +3,7 @@
 % May 31, 2015
 
 
-# Goal
+## Goal
 
 The goal of this talk is to give you a set of guidelines for writing
 production quality code.
@@ -11,8 +11,22 @@ production quality code.
 These guidelines are based on what we *actually do* in our core
 libraries (bytestring, text, containers, attoparsec, etc).
 
+The goal is to avoid performance problems "by design", not by being
+"very careful".
 
-# Preliminaries: reasoning about space usage
+
+## Outline
+
+* Reasoning about space usage
+
+* Reasoning about laziness
+
+* Inlining
+
+* Reading Core
+
+
+## Reasoning about space usage
 
 Knowing how GHC represents values in memory is useful because
 
@@ -22,7 +36,7 @@ Knowing how GHC represents values in memory is useful because
   cache behavior.
 
 
-# Memory usage for data constructors
+## Memory usage for data constructors
 
 Rule of thumb: a constructor uses one word for a header, and one
 word for each field.  So e.g.
@@ -37,7 +51,8 @@ an `Uno` takes 2 words, and a `Due` takes 3.
 * Exception: a constructor with no fields (like `Nothing` or `True`)
   takes no space, as it's shared among all uses.
 
-# Memory layout
+
+## Memory layout
 
 Here's how GHC represents the list `[1,2]` in memory:
 
@@ -50,7 +65,7 @@ Here's how GHC represents the list `[1,2]` in memory:
 * Each constructor has one word overhead for e.g. GC information
 
 
-# Refresher: unboxed types
+## Refresher: unboxed types
 
 GHC defines a number of _unboxed_ types.  These typically represent
 primitive machine types.
@@ -72,7 +87,7 @@ data Int = I# Int#
 * We call types such as `Int` _boxed_ types
 
 
-# Poll
+## Poll
 
 How many machine words is needed to store a value of this data type:
 
@@ -91,14 +106,14 @@ data IntPair = IP Int Int
 Tip: Draw a boxes-and-arrows diagram.
 
 
-# IntPair memory layout
+## IntPair memory layout
 
 <p>![](intpair.png)</p>
 
 So an `IntPair` value takes 7 words.
 
 
-# Refresher: unpacking
+## Refresher: unpacking
 
 GHC gives us some control over data representation via the
 `UNPACK` pragma.
@@ -120,7 +135,7 @@ GHC 7 and later will warn if an `UNPACK` pragma cannot be used because
 it fails the use constraint.
 
 
-# Unpacking example
+## Unpacking example
 
 ~~~~ {.haskell}
 data IntPair = IP !Int !Int
@@ -136,7 +151,7 @@ data IntPair = IP {-# UNPACK #-} !Int
 <p>![](intpair-unpacked.png)</p>
 
 
-# A structural comparison with C
+## A structural comparison with C
 
 By reference:
 
@@ -169,7 +184,7 @@ struct A {
 If you can figure out which C representation you want, you can figure
 out which Haskell representation you want.
 
-# Benefits of unpacking
+## Benefits of unpacking
 
 When the pragma applies, it offers the following benefits:
 
@@ -185,15 +200,15 @@ be reboxed.
  us.**
 
 
-# Compiler improvements
+## Compiler support
 
 Starting with GHC 7.10, small (pointer-sized* or less) strict fields
-are unpackaged automatically.
+are unpacked automatically.
 
 \* Applies to `Double` even on 32-bit architectures.
 
 
-# Preliminaries: reasoning about laziness
+## Reasoning about laziness
 
 A function application is only evaluated if its result is needed,
 therefore:
@@ -208,7 +223,7 @@ as demand/strictness analysis) to figure which arguments a function is
 strict in.
 
 
-# Reasoning about laziness: example
+## Example
 
 ~~~~ {.haskell}
 max :: Int -> Int -> Int
@@ -224,7 +239,7 @@ max x y
 * Therefore `max` is strict in both `x` and `y`.
 
 
-# Poll
+## Poll
 
 ~~~~ {.haskell}
 data Tree = Leaf | Node Int Tree Tree
@@ -248,7 +263,7 @@ Which argument(s) is `insert` strict in?
 * Both
 
 
-# Solution
+## Solution
 
 Only the second, as inserting into an empty tree can be done without
 comparing the value being inserted.  For example, this expression
@@ -266,11 +281,16 @@ insert (1 `div` 0) (Node 2 Leaf Leaf)
 does.
 
 
-# Strict data types remove space leaks
+## Strict data types cannot contain thunks
 
 Given a function `f :: ... -> T` where `T` is a type with only strict
 fields*, whose value are types containing only strict fields, and so
 forth, cannot contain any thunks.
+
+~~~~ {.haskell}
+data T1 = C1 !Int  -- Exactly 2 words
+data T2 = C2 Int   -- 2-inf words
+~~~~
 
 Therefore, `f` cannot leak space after the evaluation of `f` has
 finished.
@@ -280,37 +300,19 @@ sprinkling bangs all over the definition of `f`.
 
 \* of non-function type, because closures can retain data.
 
-# TODO: Summarize the guideline for production quality code
 
-# Think about your data representation
+## Guideline 1: data types should be strict by default
 
-* A linked-list of linked-lists of pointers to integers is not a good
-way to represent a bitmap!  (Someone actually did this and complained
-Haskell was slow.)
+* Allows a more compact data representation.
 
-* Make use of modern data types: `ByteString`, `Text`, `Vector`,
-  `HashMap`, etc.
+* Avoids many space leaks by construction.
 
-# Unpack scalar fields
+* Can be more cache-friendly to create.
 
-Always unpack scalar fields (e.g. `Int`, `Double`):
 
-~~~~ {.haskell}
-data Vec3 = Vec3 {-# UNPACK #-} !Double
-                 {-# UNPACK #-} !Double
-                 {-# UNPACK #-} !Double
-~~~~
+## In practice: strictness can cause work to be done in a more cache-friendly manner
 
-* This is **the most important optimization available** to us.
-
-* GHC does Good Things (tm) to strict, unpacked fields.
-
-* You can use `-funbox-strict-fields` on a per file basis if `UNPACK`
-  is too verbose.
-
-# Use a strict spine for data structures
-
-* Most container types have a strict spine e.g. `Data.Map`:
+Example: `Data.Map`
 
 ~~~~ {.haskell}
 data Map k a = Tip
@@ -320,73 +322,17 @@ data Map k a = Tip
 
   (Note the bang on the `Map k a` fields.)
 
-* Strict spines cause more work to be done up-front (e.g. on insert),
-  when the data structure is in cache, rather than later (e.g. on the
-  next lookup.)
+* Most container types have a strict spine.
+
+* Strict spines cause more work to be done up-front (e.g. on
+  `insert`), when the data structure is in cache, rather than later
+  (e.g. on the next `lookup`.)
 
 * Does not always apply (e.g. when representing streams and other
   infitinte structures.)
 
-# Specialized data types are sometimes faster
 
-* Polymorphic fields are always stored as pointer-to-thing, which
-  increases memory usage and decreases cache locality.  Compare:
-
-~~~~ {.haskell}
-data Tree a = Leaf | Bin a !(Tree a) !(Tree a)
-data IntTree = IntLeaf | IntBin {-# UNPACK #-} !Int !IntTree !IntTree
-~~~~
-
-* Specialized data types can be faster, but at the cost of code
-  duplication.  **Benchmark** your code and only use them if really
-  needed.
-
-# Inline recursive functions using a wrapper
-
-* GHC does not inline recursive functions:
-
-~~~~ {.haskell}
-map :: (a -> b) -> [a] -> [b]
-map _ []     = []
-map f (x:xs) = f x : map f xs
-~~~~
-
-* **If** you want to inline a recursive function, use a non-recursive
-  wrapper like so:
-
-~~~~ {.haskell}
-map :: (a -> b) -> [a] -> [b]
-map f = go
-  where
-    go []     = []
-    go (x:xs) = f x : go xs
-~~~~
-
-* You still need to figure out if you want a particular function
-  inlined (e.g. see the next slide.)
-
-# Inline HOFs to avoid indirect calls
-
-* Calling an unknown function (e.g. a function that's passed as an
-  argument) is more expensive than calling a known function.  Such
-  *indirect* calls appear in higher-order functions:
-
-~~~~ {.haskell}
-map :: (a -> b) -> [a] -> [b]
-map _ []     = []
-map f (x:xs) = f x : map f xs
-
-g xs = map (+1) xs  -- map is recursive => not inlined
-~~~~
-
-* At the cost of increased code size, we can inline `map` into `g` by
-  using the non-recursive wrapper trick on the previous slide together
-  with an `INLINE` pragma.
-
-* Inline HOFs if the higher-order argument is used a lot (e.g. in
-  `map`, but not in `Data.Map.insertWith`.)
-
-# Use strict data types in accumulators
+## Guideline 2: use strict data types in accumulators
 
 If you're using a composite accumulator (e.g. a pair), make sure it has
 strict fields.
@@ -412,11 +358,12 @@ mean2 xs = s / n
 Haskell makes it cheap to create throwaway data types like
 `StrictPair`: one line of code.
 
-# Use strict returns in monadic code
 
-`return` often wraps the value in some kind of (lazy) box.  This is
-often not what we want, especially when returning some arithmetic
-expression.  For example, assuming we're in a state monad:
+## Guideline 3: use strict returns in monadic code
+
+`return` often wraps the value in some kind of (lazy) box.  This is an
+example of a hidden lazy data type in our code.  For example, assuming
+we're in a state monad:
 
 ~~~~ {.haskell}
 return $ x + y
@@ -428,14 +375,17 @@ creates a thunk.  We most likely want:
 return $! x + y
 ~~~~
 
-# Beware of the lazy base case
+Just use `$!` by default.
+
+
+## In practice: beware of the lazy base case
 
 Functions that would otherwise be strict might be made lazy by the
 "base case":
 
 ~~~~ {.haskell}
 data Tree = Leaf
-          | Bin Key Value !Tree !Tree
+          | Bin Key !Value !Tree !Tree
 
 insert :: Key -> Value -> Tree
 insert k v Leaf = Bin k v Leaf Leaf  -- lazy in @k@
@@ -454,10 +404,11 @@ insert !k v Leaf = Bin k v Leaf Leaf  -- strict in @k@
 In this case GHC might unbox the key, making all those comparisons
 cheaper.
 
-# Beware of returning expressions inside lazy data types
+## Guideline 4: force expressions before wrapping them in lazy data types
 
-* Remember that many standard data types are lazy (e.g. `Maybe`,
-  `Either`).
+We don't control all data types in our program.
+
+* Many standard data types are lazy (e.g. `Maybe`, `Either`, tuples).
 
 * This means that it's easy to be lazier than you intend by wrapping
   an expression in such a value:
@@ -471,9 +422,184 @@ safeDiv x y = Just $ x / y  -- creates thunk
 * Force the value (e.g. using `$!`) before wrapping it in the
   constructor.
 
-# Summary
 
-* Strict fields are good for performance.
+## INLINE all the things!?!
 
-* Think about your data representation (and use `UNPACK` where
-  appropriate.)
+* **Don't.** GHC typically does a good job inlining code on its own.
+
+* We probably inline too much in core libraries, out of paranoia.
+
+* We should however *make it possible* for GHC to inline (see next
+  slide).
+
+
+## Guideline 5: Add wrapper to recursive functions
+
+* GHC does not inline recursive functions:
+
+~~~~ {.haskell}
+map :: (a -> b) -> [a] -> [b]
+map _ []     = []
+map f (x:xs) = f x : map f xs
+~~~~
+
+* **If** you want to inline a recursive function, use a non-recursive
+  wrapper like so:
+
+~~~~ {.haskell}
+map :: (a -> b) -> [a] -> [b]
+map f = go
+  where
+    go []     = []
+    go (x:xs) = f x : go xs
+~~~~
+
+
+## Inlining HOFs avoids indirect calls
+
+* Calling an unknown function (e.g. a function that's passed as an
+  argument) is more expensive than calling a known function.  Such
+  *indirect* calls appear in higher-order functions:
+
+~~~~ {.haskell}
+map :: (a -> b) -> [a] -> [b]
+map _ []     = []
+map f (x:xs) = f x : map f xs
+
+g xs = map (+1) xs  -- map is recursive => not inlined
+~~~~
+
+* If we use the non-recursive wrapper from the last slide, GHC will
+  likely inline `map` into `g`.
+
+* It's useful to Inline HOFs if the higher-order argument is used a
+  lot (e.g. in `map`, but not in `Data.Map.insertWith`). Sometimes GHC
+  gets this wrong (check the Core) and you can use a manual pragma to
+  help it.
+
+
+## Guideline 6: Use INLINABLE
+
+Use `INLINABLE` to remove overhead from type classes.
+
+* Despite its name, it works quite differently from `INLINE`.
+
+* `INLINABLE` gives us a way to do call-site specialization of type
+  class parameters.
+  
+Given
+
+~~~~ {.haskell}
+module M1 where
+    f :: Num a => a -> a -> a
+    f x y = ...
+    {-# INLINABLE f #-}
+
+module M2 where
+    main = print $ f (1 :: Int) 2
+~~~~
+
+GHC will create a copy of `f` at the call site, specialized to `Int`.
+
+
+## GHC Core
+
+* GHC uses an intermediate language, called "Core," as its internal
+  representation during several compilation stages
+* Core resembles a subset of Haskell
+* The compiler performs many of its optimizations by repeatedly
+  rewriting the Core code
+
+
+## Why knowing how to read Core is important
+
+Reading the generated Core lets you answer many questions, for
+example:
+
+* When are expressions evaluated?
+* Is this function argument accessed via an indirection?
+* Did my function get inlined?
+
+
+## Convincing GHC to show us the Core
+
+Given this "program"
+
+~~~~ {.haskell}
+module Sum where
+
+import Prelude hiding (sum)
+
+sum :: [Int] -> Int
+sum []     = 0
+sum (x:xs) = x + sum xs
+~~~~
+
+we can get GHC to output the Core by adding the `-ddump-simpl` flag
+
+~~~~
+$ ghc -O -ddump-simpl -dsuppress-module-prefixes \
+    -dsuppress-idinfo Sum.hs -fforce-recomp
+~~~~
+
+
+## Reading Core: a guide
+
+* Unless you use the `-dsuppress-*` flags,
+
+    - all names are fully qualified (e.g.`GHC.Types.Int` instead of
+      just `Int`) and
+    - there's lots of meta information about the function (strictness,
+      types, etc.)
+
+* Lots of the names are generated by GHC (e.g. `w_sgJ`).
+
+Note: The Core syntax changes slightly with new compiler releases.
+
+
+## Tips for reading Core
+
+Three tips for reading Core:
+
+* Open and edit it in your favorite editor to simplify it (e.g. rename
+  variables to something sensible).
+* Use the ghc-core package on Hackage
+* Use the GHC Core major mode in Emacs (ships with haskell-mode)
+
+
+## Core for the sum function
+
+~~~~ {.haskell}
+Rec {
+$wsum :: [Int] -> Int#
+$wsum =
+  \ (w_sxC :: [Int]) ->
+    case w_sxC of _ {
+      [] -> 0;
+      : x_amZ xs_an0 ->
+        case x_amZ of _ { I# x1_ax0 ->
+        case $wsum xs_an0 of ww_sxF { __DEFAULT -> +# x1_ax0 ww_sxF }
+        }
+    }
+end Rec }
+
+sum :: [Int] -> Int
+sum =
+  \ (w_sxC :: [Int]) ->
+    case $wsum w_sxC of ww_sxF { __DEFAULT -> I# ww_sxF }
+~~~~
+
+
+## Core for sum explained
+
+* Convention: A variable name that ends with # stands for an unboxed
+  value.
+* GHC has split `sum` into two parts: a wrapper, `sum`, and a worker,
+  `$wsum`.
+* The worker returns an unboxed integer, which the wrapper wraps in an
+  `I#` constructor.
+* `+#` is addition for unboxed integers (i.e. a single assembler
+  instruction).
+* The worker is not tail recursive, as it performs an addition after
+  calling itself recursively.
+* GHC has added a note that `sum` should be inlined.
