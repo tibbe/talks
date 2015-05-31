@@ -310,7 +310,7 @@ sprinkling bangs all over the definition of `f`.
 * Can be more cache-friendly to create.
 
 
-## In practice: strictness can cause work to be done in a more cache-friendly manner
+## In practice: strict can be more cache-friendly
 
 Example: `Data.Map`
 
@@ -433,7 +433,7 @@ safeDiv x y = Just $ x / y  -- creates thunk
   slide).
 
 
-## Guideline 5: Add wrapper to recursive functions
+## Guideline 5: Add wrappers to recursive functions
 
 * GHC does not inline recursive functions:
 
@@ -600,6 +600,44 @@ sum =
   `I#` constructor.
 * `+#` is addition for unboxed integers (i.e. a single assembler
   instruction).
-* The worker is not tail recursive, as it performs an addition after
-  calling itself recursively.
 * GHC has added a note that `sum` should be inlined.
+
+
+## What can we learn from this Core?
+
+~~~~ {.haskell}
+Rec {
+$wsum :: [Int] -> Int#
+$wsum =
+  \ (w_sxC :: [Int]) ->
+    case w_sxC of _ {
+      [] -> 0;
+      : x_amZ xs_an0 ->
+        case x_amZ of _ { I# x1_ax0 ->
+        case $wsum xs_an0 of ww_sxF { __DEFAULT -> +# x1_ax0 ww_sxF }
+        }
+    }
+end Rec }
+~~~~
+
+The worker is not tail recursive, as it performs an addition after
+calling itself recursively.
+
+This means that it will use more stack.
+
+We should probably rewrite it to use an accumulator parameter.
+
+## Summary: how to write production quality code
+
+* Think about memory layout. Use back-of-the-envelope calculations to
+  figure out how much memory your data types will take (e.g. if you
+  want to store lots of data in a map).
+
+* Use strict fields by default.
+
+* Know the limited number of cases (e.g. accumulator recursion) where
+  you need to use an explicit bang pattern.
+
+* Don't go overboard with inlining.
+
+* Learn to read Core, it's useful and fun!
