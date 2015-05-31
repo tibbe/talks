@@ -232,7 +232,7 @@ max x y
     | x <  y = y
 ~~~~
 
-* To pick one of the three RHSs, we must evaluate `x > y`.
+* To pick one of the two RHSs, we must evaluate `x > y`.
 
 * Therefore we must evaluate _both_ `x` and `y`.
 
