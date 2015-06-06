@@ -272,7 +272,7 @@ comparing the value being inserted.  For example, this expression
 insert (1 `div` 0) Leaf
 ~~~~
 
-does not raise a division-by-zero expression but
+does not raise a division-by-zero exception but
 
 ~~~~ {.haskell}
 insert (1 `div` 0) (Node 2 Leaf Leaf)
