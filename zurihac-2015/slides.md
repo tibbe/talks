@@ -329,7 +329,7 @@ data Map k a = Tip
   (e.g. on the next `lookup`.)
 
 * Does not always apply (e.g. when representing streams and other
-  infitinte structures.)
+  infinite structures.)
 
 
 ## Guideline 2: use strict data types in accumulators
