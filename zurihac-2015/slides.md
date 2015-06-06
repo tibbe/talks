@@ -272,7 +272,7 @@ comparing the value being inserted.  For example, this expression
 insert (1 `div` 0) Leaf
 ~~~~
 
-does not raise a division-by-zero expression but
+does not raise a division-by-zero exception but
 
 ~~~~ {.haskell}
 insert (1 `div` 0) (Node 2 Leaf Leaf)
@@ -329,7 +329,7 @@ data Map k a = Tip
   (e.g. on the next `lookup`.)
 
 * Does not always apply (e.g. when representing streams and other
-  infitinte structures.)
+  infinite structures.)
 
 
 ## Guideline 2: use strict data types in accumulators
@@ -387,7 +387,7 @@ Functions that would otherwise be strict might be made lazy by the
 data Tree = Leaf
           | Bin Key !Value !Tree !Tree
 
-insert :: Key -> Value -> Tree
+insert :: Key -> Value -> Tree -> Tree
 insert k v Leaf = Bin k v Leaf Leaf  -- lazy in @k@
 insert k v (Bin k' v' l r)
    | k < k'    = ...
