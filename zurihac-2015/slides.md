@@ -387,7 +387,7 @@ Functions that would otherwise be strict might be made lazy by the
 data Tree = Leaf
           | Bin Key !Value !Tree !Tree
 
-insert :: Key -> Value -> Tree
+insert :: Key -> Value -> Tree -> Tree
 insert k v Leaf = Bin k v Leaf Leaf  -- lazy in @k@
 insert k v (Bin k' v' l r)
    | k < k'    = ...
